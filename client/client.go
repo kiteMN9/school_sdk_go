@@ -1,83 +1,111 @@
 package client
 
 import (
+	"fmt"
+	"log"
 	"net/http"
+	"net/http/cookiejar"
 	"net/url"
+	"os"
+	"school_sdk/client/cas2"
 	baseCfg "school_sdk/config"
 	"strings"
 	"time"
 
-	"github.com/go-resty/resty/v2"
-	// "github.com/google/brotli/go/cbrotli"
-	// "github.com/klauspost/compress/zstd"
+	"resty.dev/v3"
 )
 
+// APIClient 包装Resty客户端，动态应用配置
 type APIClient struct {
-	config  *Config
-	Account string // 账号、学号
-	passwd  string // 密码
-	http    *resty.Client
+	filename         string // 配置文件名称
+	Config           *Config
+	Account          string // 账号、学号
+	passwd           string // 密码
+	Http             *resty.Client
+	onlyCookieMethod bool
+	enableCas2       bool
+	cas2Client       *cas2.Client
 }
 
-// var zstdDecoder, _ = zstd.NewReader(nil)
-
-//var servers = []string{
-//	"http://10.0.4.8",
-//	"http://10.0.4.9",
-//	"http://10.0.4.22",
-//	"http://10.0.4.23",
-//}
-
-func NewAPIClient(config *Config, account, passwd string) *APIClient {
-	transport := &http.Transport{
-		DisableKeepAlives: false, // 禁用 Keep-Alive（默认false，即启用）
-		// 连接池设置
-		MaxIdleConns:        50,               // 全局最大空闲连接数 default 100
-		MaxIdleConnsPerHost: 20,               // 对于每个主机，保持最大空闲连接数
-		IdleConnTimeout:     90 * time.Second, // 空闲连接超时，空闲连接保留时间
-		ProxyConnectHeader: http.Header{
-			"User-Agent": {config.userAgent},
-			"Connection": {"keep-alive"},
-		},
-		TLSHandshakeTimeout: 11 * time.Second, // TLS 握手超时时间，default 10
-		//ResponseHeaderTimeout: 25 * time.Second, // 等待响应头的超时时间
-		ForceAttemptHTTP2:     true,
-		ExpectContinueTimeout: 1 * time.Second,
-		//Proxy: ProxyFromEnvironment,
-		//DialContext: defaultTransportDialContext(&net.Dialer{
-		//	Timeout:   30 * time.Second,
-		//	KeepAlive: 30 * time.Second,
-		//}),
-	}
+func NewBasicClient(baseURL string, timeout time.Duration) *resty.Client {
 	client := resty.New().
-		SetTransport(transport).
-		SetHeader("user-agent", config.userAgent).
-		SetHeader("accept", "*/*")
-	// 设置初始配置
-	//client.SetProxy("http://127.0.0.1:8866")
+		SetRedirectPolicy(resty.NoRedirectPolicy()).
+		SetBaseURL(baseURL)
+
+	if os.Getenv("proxy") == "1" {
+		client.SetProxy("http://127.0.0.1:8866")
+		tls := client.TLSClientConfig()
+		tls.InsecureSkipVerify = true
+	}
+	if os.Getenv("trace") == "1" {
+		client.EnableTrace()
+	}
+
+	client.EnableRetryDefaultConditions()
 	client.SetRetryCount(5).
-		SetRetryWaitTime(1743 * time.Millisecond). // 设置两次重试直接的基础等待时间
-		SetRetryMaxWaitTime(config.timeout)
-	//client.SetTimeout(config.GetTimeout())           // 整个请求的超时时间
+		SetRetryWaitTime(129 * time.Millisecond). // 设置两次重试之间的基础等待时间
+		SetRetryMaxWaitTime(3 * time.Second).     // 设置两次重试之间的最大等待时间
+		SetTimeout(timeout)                       // 整个请求的超时时间
 
-	refer, _ := JoinURL(config.baseURL, baseCfg.LoginIndex)
+	refer, _ := JoinURL(baseURL, baseCfg.LoginIndex)
 	client.SetHeader("Referer", refer)
-	client.SetBaseURL(config.baseURL)
 
-	//client.SetRedirectPolicy(resty.FlexibleRedirectPolicy(2))
-	//client.SetRedirectPolicy(resty.NoRedirectPolicy())
-	// 去掉这个就是正常的验证登录的流程
-	client.SetRedirectPolicy(resty.RedirectPolicyFunc(func(req *http.Request, via []*http.Request) error {
-		// 返回此错误会强制停止自动重定向，并返回当前响应（如 302）
-		return http.ErrUseLastResponse
-	}))
-	client.SetLogger(&CustomLogger{})
+	client.SetHeader("Accept", "*/*")
+
+	// Add decompresser into Resty
+	client.AddContentDecompresser("br", decompressBrotli)
+	client.AddContentDecompresser("zstd", decompressZstd)
+	return client
+}
+
+func NewAPIClient(config *Config, account, passwd string, cfgFileName string, isCas2, WX bool, casPasswd string) *APIClient {
+	client := NewBasicClient(config.baseURL, config.timeout)
+	client.SetHeader("user-agent", config.userAgent)
+	//SetTLSFingerprintRandomized().
+	//client.EnableDebugLog()
+
+	//transport, _ := client.HTTPTransport()
+	//fmt.Println(transport.MaxConnsPerHost, transport.MaxIdleConnsPerHost, transport.MaxIdleConns)
+	//transport.MaxIdleConns = 100
+	//transport.MaxIdleConnsPerHost = 16 // 每个host最大空闲连接数
+	//transport.MaxConnsPerHost = 30     // 每个host最大连接数
+
+	// client.SetDebug(false) // 启用调试日志
+	//client.SetLogger(&CustomLogger{})
+
+	apiClient := &APIClient{
+		Config:     config,
+		Http:       client,
+		Account:    account,
+		passwd:     passwd,
+		filename:   cfgFileName,
+		enableCas2: isCas2 || WX,
+	}
+
+	if isCas2 || WX {
+		apiClient.cas2Client = cas2.NewCas(account, casPasswd, config.userAgent, WX)
+		return apiClient
+	}
+	return apiClient
+}
+
+func NewClientWithCookieJar(config *Config, account string, jar *cookiejar.Jar) *APIClient {
+	client := NewBasicClient(config.baseURL, config.timeout).
+		SetCookieJar(jar)
+	client.SetHeader("user-agent", config.userAgent)
+	//SetTLSFingerprintRandomized().
+	//client.SetProxyURL("http://127.0.0.1:8866")
+	client.EnableTrace()
+
+	//client.SetLogger(&CustomLogger{})
 
 	return &APIClient{
-		config:  config,
-		http:    client,
-		Account: account,
-		passwd:  passwd,
+		Config:           config,
+		Http:             client,
+		Account:          account,
+		passwd:           "cookie!",
+		filename:         "",
+		onlyCookieMethod: true,
 	}
 }
 
@@ -97,33 +125,18 @@ func JoinURL(base, endpoint string) (string, error) {
 var TERM = map[int]string{1: "3", 2: "12", 3: "16"}
 
 func (a *APIClient) CheckLogout302(resp *resty.Response) bool {
+	if resp == nil {
+		return false
+	}
 	if resp.StatusCode() == http.StatusFound {
 		location := resp.Header().Get("Location")
-		if strings.Contains(location, baseCfg.LoginIndex) {
+		if strings.Contains(location, baseCfg.LoginIndex) || strings.Contains(location, a.Http.BaseURL()) {
 			//println("Logout302")
 			return true
+		} else {
+			log.Println("CheckLogout302:", resp.Header())
+			fmt.Println("意料之外的错误！", resp.Header())
 		}
 	}
 	return false
-}
-
-// 自定义日志记录器
-type CustomLogger struct{}
-
-// Implement the Log方法
-// func (c *CustomLogger) Log(v ...interface{}) {
-// 	log.Println(v...)
-// }
-
-// Debugf 实现了 resty.Logger 接口的 Debugf 方法
-func (l *CustomLogger) Debugf(format string, v ...interface{}) {
-	// log.Printf("DEBUG: "+format, v...)
-}
-
-// Errorf 实现了 resty.Logger 接口的 Errorf 方法
-func (l *CustomLogger) Errorf(format string, v ...interface{}) {
-	// log.Printf("ERROR: "+format, v...)
-}
-func (l *CustomLogger) Warnf(format string, v ...interface{}) {
-	// log.Printf("ERROR: "+format, v...)
 }

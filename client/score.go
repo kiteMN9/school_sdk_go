@@ -1,6 +1,8 @@
 package client
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"log"
 	baseCfg "school_sdk/config"
@@ -11,13 +13,13 @@ import (
 )
 
 func (a *APIClient) getScoreRaw(year string, term int) []Score {
+	var score ScoreRaw
 	for {
-		resp, err := a.http.R().
+		resp, err := a.Http.R().
 			SetQueryParams(map[string]string{
 				"doType": "query",
 				"gnmkdm": "N305005",
-				//"layout": "default",
-				"su": a.Account,
+				"su":     a.Account,
 			}).
 			SetFormData(map[string]string{
 				"xnm":                    year,
@@ -28,57 +30,153 @@ func (a *APIClient) getScoreRaw(year string, term int) []Score {
 				"queryModel.currentPage": "1",
 				"queryModel.sortName":    "",
 				"queryModel.sortOrder":   "asc",
-				"time":                   "0",
+				"time":                   "0", //0,1
 			}).
-			//SetContext(ctx).
-			SetResult(&ScoreRaw{}).
+			SetTimeout(12 * time.Second).
+			SetResult(&score).
 			Post(baseCfg.SCORE)
-
 		if err != nil {
-
+			if errors.Is(err, context.Canceled) {
+				fmt.Println("查成绩请求取消")
+				log.Println("成绩请求已取消")
+			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				fmt.Println("查成绩请求超时")
+				log.Println("查成绩请求超时")
+			}
+			//	return
+			//} else {
+			//	fmt.Println(err)
+			//}
 			fmt.Println(err.Error())
-			return []Score{}
+			log.Println(err.Error())
+
+			log.Println(resp.String())
+			if strings.Contains(resp.String(), "Sorry, the page you are looking for is currently unavailable.") {
+				fmt.Println("http状态码:", resp.Status())
+				fmt.Println(resp.String())
+			}
+			return nil
 		}
 
 		if a.LoginCheck(resp) {
 			// Ctrl里有关重定向是302，不关是200
 		} else {
-			fmt.Println(resp.StatusCode())
+			fmt.Println(resp.Status())
 			a.ReLogin()
 			continue
 		}
-		result := resp.Result().(*ScoreRaw)
 
-		log.Println(resp.String())
-		if strings.Contains(resp.String(), "Sorry, the page you are looking for is currently unavailable.") {
-			fmt.Println("http状态码:", resp.StatusCode())
-			fmt.Println(resp.String())
-		}
-		return result.Items
+		return score.Items
 	}
 }
 
 func formatPrintScoreAll(items []Score) {
-	for _, item := range items {
-		formatPrintScore(item)
+	if len(items) == 0 {
+		fmt.Println("未查到成绩数据")
+		return
 	}
+	gksl := 0
+	jqxf := 0.0
+	fmt.Printf("%s百分成绩%s学分%s绩点%s课程名称  %s成绩%s 考试性质 学位课程 课程类别 课程性质\n",
+		BoldCyan, Reset,
+		GreenBgText, Reset,
+		BoldCyan, Reset,
+	)
+	for _, item := range items {
+		if formatPrintScore(item) {
+			gksl++
+			xf, err := strconv.ParseFloat(item.Xf, 64)
+			if err != nil {
+				continue
+			}
+			jqxf += xf
+		}
+	}
+	// 做一个总结功能，总结一下获得多少学分拖欠多少学分，获得多少绩点 平均多少
+	if jqxf != 0 {
+		fmt.Println("挂科数量:"+BoldYellow, gksl, Reset+"总课程数:", len(items), "积欠学分:"+BoldYellow, jqxf, Reset)
+	} else {
+		fmt.Println("挂科数量:"+BoldYellow, gksl, Reset+"总课程数:", len(items))
+	}
+	log.Printf("%+v\n", items)
 }
-func formatPrintScore(d Score) {
+func formatPrintScore(d Score) bool {
 	bfcj, err := strconv.Atoi(d.Bfzcj)
 	if err != nil {
 		log.Println(err)
 	}
+	return printScore(d, bfcj)
+}
+
+// 定义颜色常量
+const (
+	Reset      = "\033[0m"
+	BoldCyan   = "\033[1;36m"
+	BoldYellow = "\033[1;33m"
+
+	//RedText     = "\033[31m"
+	//GreenText   = "\033[32m"
+	//RedBgText   = "\033[31;40m" // 红色文字，黑色背景
+
+	BrightRedBg = "\033[1;91m"  // 红色文字，黑色背景
+	GreenBgText = "\033[32;40m" // 绿色文字，黑色背景
+)
+
+func printScore(d Score, bfcj int) bool {
 	if bfcj == 0 {
-		fmt.Printf("\033[0;31;40m%s %s\t%s学分 %s (%s) %s绩点 %s %s %s %s\033[0m\n", d.Kcxzmc, d.Kcmc, d.Xf, d.Cj, d.Cjbz, d.Jd, d.Ksxz, d.Sfxwkc, d.Kkbmmc, d.Kclbmc)
+		// 缺考
+		s := fmt.Sprintf("%2s %s%3s%s学 %s%-6s %s%2s%s ",
+			d.Bfzcj,                 // 百分制成绩
+			BoldYellow, d.Xf, Reset, // 学分
+			//d.Jd, // 绩点
+
+			BrightRedBg,
+			d.Kcmc, // 课程名称
+			BoldYellow,
+			d.Cj, // 成绩
+			BrightRedBg)
+		s2 := fmt.Sprintf("%s(%s)%s %s %s %s %s%s\n",
+			BoldYellow,
+			d.Cjbz,
+			BrightRedBg,
+			d.Ksxz, d.Sfxwkc, d.Kclbmc, d.Kcxzmc,
+			Reset)
+		fmt.Print(s + s2)
+		return true
 	} else if bfcj < 60 {
-		fmt.Printf("\033[0;31;40m%s %s\t%s学分 %s分 %s绩点 %s %s %s %s\033[0m\n", d.Kcxzmc, d.Kcmc, d.Xf, d.Cj, d.Jd, d.Ksxz, d.Sfxwkc, d.Kkbmmc, d.Kclbmc)
-	} else {
-		fmt.Printf("%s %s\t%s学分 \u001B[1;36m%s\u001B[0m分 %s绩点 %s %s %s %s %s\n", d.Kcxzmc, d.Kcmc, d.Xf, d.Cj, d.Jd, d.Bfzcj, d.Ksxz, d.Sfxwkc, d.Kkbmmc, d.Kclbmc)
+		// 不及格
+		s := fmt.Sprintf("%2s %s%3s%s学 %s%-6s %s%2s%s ",
+			d.Bfzcj,
+			BoldYellow, d.Xf, Reset,
+			//d.Jd,
+			BrightRedBg,
+
+			d.Kcmc,
+			BoldYellow,
+			d.Cj,
+			BrightRedBg)
+		s2 := fmt.Sprintf("%s %s %s %s%s\n",
+			d.Ksxz, d.Sfxwkc, d.Kclbmc, d.Kcxzmc,
+			Reset)
+		fmt.Print(s + s2)
+		return true
 	}
+
+	// 合格
+	fmt.Printf("%s%2s%s %3s学 %s%3s%s %-6s %s%2s%s %s %s %s %s\n",
+		BoldCyan, d.Bfzcj, Reset,
+		d.Xf,
+		GreenBgText, d.Jd, Reset,
+
+		d.Kcmc,
+		BoldCyan, d.Cj, Reset,
+		d.Ksxz, d.Sfxwkc, d.Kclbmc, d.Kcxzmc)
+	return false
 }
 
 func (a *APIClient) GetScore(year string, term int) {
-
+	//fmt.Println("get score")
 	if term == 0 {
 		return
 	}
@@ -89,7 +187,7 @@ func (a *APIClient) GetScore(year string, term int) {
 		return
 	}
 	items := a.getScoreRaw(year, term)
-
+	//fmt.Println(items)
 	formatPrintScoreAll(items)
 }
 
@@ -99,13 +197,13 @@ func (a *APIClient) GetScoreWithInput() {
 }
 
 func GetUserInputYearTerm() (string, int) {
-	var year, term, line = "2024", "2", ""
+	var year, term, line = "2025", "1", ""
 	var termInt int
 
-	fmt.Printf("\033[1;36m%s\033[0m 年 \033[1;36m%s\033[0m 学期\n", year, term)
+	fmt.Printf("\033[1;36m%2s\033[0m 年 \033[1;36m%2s\033[0m 学期\n", year, term)
 	for {
 		var err error
-		line, err = utils.UserInputWithSigInt("年份(2024):")
+		line, err = utils.UserInputWithSigInt(fmt.Sprintf("年份(%s):", year))
 		if err != nil {
 			return "0", 0
 		}
@@ -117,18 +215,20 @@ func GetUserInputYearTerm() (string, int) {
 			break
 		}
 	}
-
+	var term_ string
 	for {
 		var err error
-		line, err = utils.UserInputWithSigInt("学期(1,2,3):")
+		line, err = utils.UserInputWithSigInt("学期(\u001B[1;36m1\u001B[0m,2,3):")
 		if err != nil {
 			return "0", 0
 		}
 		if line != "" && len(line) == 1 {
-			term = line[0:1]
+			term_ = line[0:1]
+		} else {
+			term_ = term
 		}
 		var err4 error
-		termInt, err4 = strconv.Atoi(term)
+		termInt, err4 = strconv.Atoi(term_)
 		if err4 != nil {
 			log.Println(err4)
 		}
@@ -154,64 +254,67 @@ type ScoreRaw struct {
 	TotalResult   int     `json:"totalResult"`
 }
 type Score struct {
-	Bfzcj   string `json:"bfzcj"`
-	Bh      string `json:"bh"`
+	//# njdm_id -> 年级代码
+	Bfzcj   string `json:"bfzcj"` // 百分制成绩
+	Bh      string `json:"bh"`    //
 	Bh_id   string `json:"bh_id"`
 	Bj      string `json:"bj"`
-	Bzxx    string `json:"bzxx"`
-	Cjbz    string `json:"cjbz"`
-	Czr     string `json:"czr"`
-	Cj      string `json:"cj"`
-	Cjbdczr string `json:"cjbdczr"`
-	Cjbdsj  string `json:"cjbdsj"`
-	Cjsfzf  string `json:"cjsfzf"`
+	Bzxx    string `json:"bzxx"`    // 备注信息
+	Cjbz    string `json:"cjbz"`    // 成绩备注 缺考
+	Czr     string `json:"czr"`     // cz人
+	Cj      string `json:"cj"`      // 成绩
+	Cjbdczr string `json:"cjbdczr"` // 陈爱华
+	Cjbdsj  string `json:"cjbdsj"`  // 成绩bd时间？
+	Cjsfzf  string `json:"cjsfzf"`  // 成绩是否作废
 
-	Date               string `json:"date"`
-	DateDigit          string `json:"dateDigit"`
-	DateDigitSeparator string `json:"dateDigitSeparator"`
+	Date               string `json:"date"`               // 二○二五年六月一日
+	DateDigit          string `json:"dateDigit"`          // 2025年6月01日
+	DateDigitSeparator string `json:"dateDigitSeparator"` // 2025-6-01
 
-	Day    string `json:"day"`
-	Jd     string `json:"jd"`
-	Jg_id  string `json:"jg_id"`
-	Jgmc   string `json:"jgmc"`
-	Jgpxzd string `json:"jgpxzd"`
-	Jsxm   string `json:"jsxm"`
-	Jxb_id string `json:"jxb_id"`
-	Jxbmc  string `json:"jxbmc"`
-	Kcbj   string `json:"kcbj"`
+	Day    string `json:"day"`    //
+	Jd     string `json:"jd"`     // 绩点 1.00
+	Jg_id  string `json:"jg_id"`  // 003
+	Jgmc   string `json:"jgmc"`   // 化学化工学院、应急管理与安全工程学院（合署）
+	Jgpxzd string `json:"jgpxzd"` // 1
+	Jsxm   string `json:"jsxm"`   // 教师姓名
+	Jxb_id string `json:"jxb_id"` //
+	Jxbmc  string `json:"jxbmc"`  // 教学班名称
+	Kcbj   string `json:"kcbj"`   // 课程标记 主修
 
-	Kch    string `json:"kch"`
-	Kch_id string `json:"kch_id"`
-	Kclbmc string `json:"kclbmc"`
-	Kcmc   string `json:"kcmc"`
-	Kcxzdm string `json:"kcxzdm"`
-	Kcxzmc string `json:"kcxzmc"`
+	Kch    string `json:"kch"`    // 课程号
+	Kch_id string `json:"kch_id"` // 课程号ID
+	Kclbmc string `json:"kclbmc"` // 课程类别 专业必修课
+	Kcmc   string `json:"kcmc"`   // 课程名称
+	Kcxzdm string `json:"kcxzdm"` // 课程性质名称001
+	Kcxzmc string `json:"kcxzmc"` // 课程性质名称 选修
 
-	Key string `json:"key"`
+	Key string `json:"key"` // =Jxb_id+"-"+Xh
 
-	Ksxz   string `json:"ksxz"`
-	Kkbmmc string `json:"kkbmmc"`
-	Khfsmc string `json:"khfsmc"`
-	Kklxdm string `json:"kklxdm"`
+	Ksxz   string `json:"ksxz"`   // 考试性质 正常考试、补考一、重修
+	Kkbmmc string `json:"kkbmmc"` // 开课部门名称 开课学院	数理学院 马克思主义学院 人文社会科学学院
+	Khfsmc string `json:"khfsmc"` // 考核方式 考查 考试
+	Kklxdm string `json:"kklxdm"` // 板块课 主修课程 特殊课程 通识选修课
 
-	Year    string `json:"year"`
-	Rwzxs   string `json:"rwzxs"`
-	Sfdkbcx string `json:"sfdkbcx"`
-	Sfxwkc  string `json:"sfxwkc"`
-	Sfzh    string `json:"sfzh"`
-	Sfzx    string `json:"sfzx"`
-	Tjrxm   string `json:"tjrxm"`
-	Tjsj    string `json:"tjsj"`
-	Xb      string `json:"xb"`
-	Xbm     string `json:"xbm"`
-	Xf      string `json:"xf"`
-	Xfjd    string `json:"xfjd"`
-	Xh      string `json:"xh"`
-	Xh_id   string `json:"xh_id"`
-	Xm      string `json:"xm"`
-	Xnm     string `json:"xnm"`
-	Xnmmc   string `json:"xnmmc"`
-	Xqm     string `json:"xqm"`
-	Xqmmc   string `json:"xqmmc"`
-	Zymc    string `json:"zymc"`
+	Year    string `json:"year"`    //
+	Rwzxs   string `json:"rwzxs"`   // 什么人数？ "40"
+	Sfdkbcx string `json:"sfdkbcx"` // 否
+	Sfxwkc  string `json:"sfxwkc"`  // 是否学位课程 否
+	Sfzh    string `json:"sfzh"`    // 身份证号码
+	Sfzx    string `json:"sfzx"`    // 是
+	Tjrxm   string `json:"tjrxm"`   // 提交人姓名
+	Tjsj    string `json:"tjsj"`    // 提交时间 2024-01-01 10:00:00
+	Xb      string `json:"xb"`      // 性别 男
+	Xbm     string `json:"xbm"`     // 性别码 男:1
+	Xf      string `json:"xf"`      // 学分 2.5
+	Xfjd    string `json:"xfjd"`    // 学分绩点 2.50
+	Xh      string `json:"xh"`      // 学号
+	Xh_id   string `json:"xh_id"`   // 001
+	Xm      string `json:"xm"`      // 姓名
+	Xnm     string `json:"xnm"`     // 2024
+	Xnmmc   string `json:"xnmmc"`   // 2024-2025
+	Xqm     string `json:"xqm"`     // 3
+	Xqmmc   string `json:"xqmmc"`   // 1
+	Zymc    string `json:"zymc"`    // 化学工程与工艺
+
+	//Zymc string `json:"zymc"` // 化学工程与工艺
 }

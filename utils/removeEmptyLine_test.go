@@ -279,7 +279,7 @@ func Test_RemoveEmptyLines(t *testing.T) {
 
 		<form id="requestMap">
 
-			 <input type="hidden" id="sessionUserKey" value="[REDACTED_ID]" /> 
+			 <input type="hidden" id="sessionUserKey" value="11111" /> 
 
 			 
 
@@ -401,7 +401,7 @@ func Test_RemoveEmptyLines(t *testing.T) {
 
 		<input type="hidden" name="xkxqmc" id="xkxqmc" value="2"/>
 
-		<input type="hidden" name="xh_id" id="xh_id" value="[REDACTED_ID]"/>
+		<input type="hidden" name="xh_id" id="xh_id" value="11111"/>
 
 		<input type="hidden" name="xqh_id" id="xqh_id" value="3"/>
 
@@ -417,7 +417,7 @@ func Test_RemoveEmptyLines(t *testing.T) {
 
 		<input type="hidden" name="njmc" id="njmc" value="2023"/>
 
-		<input type="hidden" name="bh_id" id="bh_id" value="20230054"/>
+		<input type="hidden" name="bh_id" id="bh_id" value="20230031"/>
 
 		<input type="hidden" name="xbm" id="xbm" value="1"/>
 

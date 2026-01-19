@@ -6,10 +6,10 @@ import (
 	"time"
 )
 
-// 不完善哦
+// 瞎做的没什么用的模块
 
 func (a *APIClient) Evaluation() {
-	resp, err := a.http.R().
+	resp, err := a.Http.R().
 		SetQueryParams(map[string]string{
 			"gnmkdm": "N408125",
 			//"layout": "default",
@@ -18,67 +18,56 @@ func (a *APIClient) Evaluation() {
 	fmt.Println(resp, err)
 }
 
-func (a *APIClient) EvaluationQuery() {
-	resp, err := a.http.R().
+func (a *APIClient) EvaluationQuery() T {
+	var result T
+	resp, err := a.Http.R().
 		SetQueryParams(map[string]string{
 			"gnmkdm": "N408125",
 			"doType": "query",
 			//"layout": "default",
 			//"su": a.account,
-		}).SetResult(&T{}).
+		}).SetResult(&result).
 		Post(baseCfg.Evaluations)
 	if err != nil {
-		//if errors.Is(ctx.Err(), context.Canceled) {
-		//	log.Println("保持登录已取消")
-		//	return
-		//} else {
-		//	fmt.Println(err)
-		//}
 		fmt.Println(err.Error())
-		return
+		return result
 	}
 	if a.LoginCheck(resp) {
-		// Ctrl里有关重定向是302，不关是200
 	} else {
-		fmt.Println(resp.StatusCode())
+		fmt.Println(resp.Status())
 		a.ReLogin()
-		//continue
 	}
-	result := resp.Result().(*T)
 	fmt.Println(resp, err)
 	fmt.Println(result)
+	return result
 }
 
-func (a *APIClient) GetTeacherPhoto(id string) {
-	resp, err := a.http.R().
+func (a *APIClient) GetTeacherPhoto(id string) T {
+	var result T
+	resp, err := a.Http.R().
 		SetQueryParams(map[string]string{
 			"t":      fmt.Sprint(time.Now().UnixMilli()),
 			"ignore": "1",
 			"jgh_id": id,
 			//"layout": "default",
 			//"su": a.account,
-		}).SetResult(&T{}).
+		}).SetResult(&result).
 		Get(baseCfg.TeacherPhoto)
 	if err != nil {
-		//if errors.Is(ctx.Err(), context.Canceled) {
-		//	log.Println("保持登录已取消")
-		//	return
-		//} else {
-		//	fmt.Println(err)
-		//}
 		fmt.Println(err.Error())
-		return
+		return result
 	}
 	if a.LoginCheck(resp) {
 		// Ctrl里有关重定向是302，不关是200
 	} else {
-		fmt.Println(resp.StatusCode())
+		fmt.Println(resp.Status())
 		a.ReLogin()
 		//continue
 	}
-	result := resp.Result().(*T)
+
 	fmt.Println(resp, err)
 	fmt.Println(result)
+	return result
 }
 
 type T struct {

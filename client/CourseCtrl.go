@@ -4,11 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/AlecAivazis/survey/v2/terminal"
-	"github.com/go-resty/resty/v2"
 	"io"
 	"log"
-	"net/http"
 	"os"
 	"os/signal"
 	"school_sdk/utils"
@@ -17,10 +14,11 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"github.com/AlecAivazis/survey/v2/terminal"
 )
 
 func (a *APIClient) userSetMode(cfg *APIConfig) string {
-	var code string
 	fmt.Printf(`
 ********************************
 功能代码如下:  %s
@@ -28,7 +26,6 @@ func (a *APIClient) userSetMode(cfg *APIConfig) string {
 [1;36m1[0m.【xk】选课
 2.【yxkc】已选课程查询
 3.【tk】退课
-
 6.【sx】刷新愿望清单
 7.【rf】重新获取参数
 [1;36m9[0m.设定开始时间
@@ -40,25 +37,24 @@ ps:【】内的值为功能代码
 	if err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, terminal.InterruptErr) {
 			a.Logout()
-			a.http.GetClient().CloseIdleConnections()
-			os.Exit(0)
 		}
-		return ""
+		log.Println("input code err:", err)
+		fmt.Println("", err)
+		time.Sleep(1 * time.Second)
+		//return code
 	}
 	log.Println("userInputCode:", code)
 	if code == "-2" {
 		a.Logout()
-		os.Exit(0)
 	}
 	return code
 }
 
-func (a *APIClient) GetCourseCtl() {
-	// 这里设计的有点屎了
+func (a *APIClient) GetCourseCtl(modeCode string) {
+	if modeCode != "" {
+		log.Println("modeCode:", modeCode)
+	}
 	utils.PrintNotise()
-	a.http.SetRedirectPolicy(resty.RedirectPolicyFunc(func(req *http.Request, via []*http.Request) error {
-		return http.ErrUseLastResponse
-	}))
 	var cfg APIConfig
 	var code string
 	cfg.needInit = true
@@ -67,10 +63,16 @@ func (a *APIClient) GetCourseCtl() {
 	sCustL := NewCustomCourseSlice()
 	cfg.wantClassList, cfg.wantTeacherList, cfg.wantTypeList = utils.ReadExcel()
 	cfg.startTimeStamp = readStartTimeConfig()
+	cfg.smtpConfig = utils.SMTPReadConfig()
 	cfg.modeName = "(未初始化)"
 
 	for {
-		code = a.userSetMode(&cfg)
+		if modeCode != "" {
+			code = modeCode
+			modeCode = ""
+		} else {
+			code = a.userSetMode(&cfg)
+		}
 		switch code {
 		case "6", "sx":
 			refreshWant(&cfg)
@@ -86,12 +88,15 @@ func (a *APIClient) GetCourseCtl() {
 			a.Other(&cfg)
 			continue
 
+		case "clear":
+			sCustL = NewCustomCourseSlice()
+			continue
 		case "1", "xk", "2", "yxkc", "3", "tk":
 		default:
-			fmt.Println("无效的输入")
+			fmt.Println("无效的输入: ", code)
 			continue
 		}
-		if cfg.startTimeStamp != 0 {
+		if cfg.startTimeStamp != time.Unix(0, 0) {
 			a.timeKeepSession(cfg.startTimeStamp)
 		}
 		if cfg.needInit {
@@ -106,7 +111,7 @@ func (a *APIClient) GetCourseCtl() {
 					if errors.Is(ctx.Err(), context.Canceled) {
 						return
 					}
-					fmt.Printf("\033[1;36m%s\033[0m\n", cfg.zxfs)
+					fmt.Printf("本学期已选学分 \033[1;36m%s\033[0m\n", cfg.zxfs)
 					a.getCourseListPre(ctx, &cfg, cfg.xkkz_id, cfg.xszxzt)
 					if errors.Is(ctx.Err(), context.Canceled) {
 						return
@@ -115,28 +120,28 @@ func (a *APIClient) GetCourseCtl() {
 					log.Printf("距离选课结束还有 %s 天 共 %s 小时", cfg.syts, cfg.syxs)
 					switch code {
 					case "1", "xk":
-						listP := a.getCourseList(ctx, &cfg)
+						list := a.getCourseList(ctx, &cfg)
 						if errors.Is(ctx.Err(), context.Canceled) {
 							return
 						}
-						sCustL.courseList2custom(listP)
+						sCustL.courseList2custom(list)
 						sCustL.printCourse(&cfg)
 						if len(sCustL.items) == 0 {
-							panic("开发错误: 课程列表长度为0")
+							fmt.Println("你可能没有课可选")
+							return
 						}
 						same, _ := sCustL.isKchIdAllSame()
 						if same {
-							detailP := a.getCourseDetail(ctx, &cfg, sCustL.Get(0).Kch_id)
+							detail := a.getCourseDetail(ctx, &cfg, sCustL.Get(0).Kch_id)
 							if errors.Is(ctx.Err(), context.Canceled) {
 								return
 							}
-							if detailP == nil {
+							if detail == nil {
 
 								fmt.Println("将重新开始")
 								continue
 							}
-							sCustL.courseDetail2custom(detailP)
-
+							sCustL.courseDetail2custom(detail)
 						}
 					}
 
@@ -162,6 +167,9 @@ func (a *APIClient) GetCourseCtl() {
 			}
 
 		}
+		if cfg.needInit {
+			continue
+		}
 
 		switch code {
 		case "1", "xk":
@@ -170,7 +178,7 @@ func (a *APIClient) GetCourseCtl() {
 			a.getAlreadySelected(&cfg)
 		case "3", "tk":
 			a.quitSelected(&cfg)
-
+		case "7":
 		default:
 			fmt.Println("开发阶段错误")
 			log.Println("开发阶段错误")
@@ -180,17 +188,19 @@ func (a *APIClient) GetCourseCtl() {
 
 func (a *APIClient) Other(cfg *APIConfig) {
 	log.Println("进入 Other 功能")
-	fmt.Println("特殊课程、通识选修课模式切换:", cfg.modeStore)
 	for {
 		var code string
 		var err error
 		fmt.Printf(`
 ********************************
-1.特殊课程、通识选修课模式切换（建设中）
-2.配置邮件功能（没做）
-3.设置教务系统课程查询参数（没做）
+1.课程模式切换（待测试）
+2.启用邮件功能(SMTP)
+3.设置教务系统课程查询参数
 4.查询成绩
 5.自定义已选课程查询
+mail.测试邮件功能
+gpa.查看GPA
+color.色彩测试
 ********************************` + "\n")
 		code, err = utils.UserInputWithSigInt("请输入功能代码(-1 退出其他):")
 		if err != nil {
@@ -198,24 +208,89 @@ func (a *APIClient) Other(cfg *APIConfig) {
 		}
 		log.Println("userInputCode:", code)
 		switch code {
-		case "-1":
+		case "-1", ".", "@":
 			return
 		case "1":
-			fmt.Println("特殊课程、通识选修课模式切换:", cfg.modeStore)
-			fmt.Println("然后就没了")
-		case "2", "3":
-			fmt.Println("没做")
+			setMode(cfg)
+		case "2":
+			cfg.smtpConfig = utils.SMTPReadConfig()
+			cfg.smtpConfig.Enable = true
+			fmt.Println(cfg.smtpConfig.Host, cfg.smtpConfig.Port)
+			fmt.Println(cfg.smtpConfig.From)
+			fmt.Println(cfg.smtpConfig.To)
+		case "3":
+			if cfg.yl {
+				cfg.yl = false
+				fmt.Println("设置余量 无")
+			} else {
+				cfg.yl = true
+				fmt.Println("设置余量 有")
+			}
 		case "4":
 			a.GetScoreWithInput()
 		case "5":
 			a.customGetSelected()
-		case "dev":
-			fmt.Println("debug")
-
+		case "6":
+			if cfg.xztk {
+				cfg.xztk = false
+				fmt.Println("限制退选课程")
+			} else {
+				cfg.xztk = true
+				fmt.Println("不限制退课")
+			}
+		case "mail":
+			if cfg.smtpConfig.Enable {
+				smtpContent := "<b>%s\n%s</b>"
+				fmt.Println("Send mail")
+				utils.SendMail(cfg.smtpConfig, "选课提醒测试", fmt.Sprintf(smtpContent, "*-选课成功✅?-*-", "游戏电竞课"))
+			}
+		case "gpa":
+			a.getGPA()
+		case "color":
+			utils.TestTerminalColors()
 		default:
 			fmt.Printf("没有 %s 哦\n", code)
 		}
 	}
+}
+
+func setMode(cfg *APIConfig) {
+	log.Println("特殊课程、通识选修课模式切换:", cfg.modeStore)
+	if len(cfg.modeStore) == 0 {
+		fmt.Println("没有模式切换选项哦")
+		return
+	}
+	for _, item := range cfg.modeStore {
+		fmt.Println(item.Kklxmc)
+		fmt.Println(item.Kklxdm)
+		fmt.Println(item.Xkkz_id)
+		fmt.Println()
+	}
+	toChooseIdRow, err := utils.UserInputWithSigInt("输入模式前的序号: ")
+	if err != nil {
+		return
+	}
+	if toChooseIdRow == "-1" {
+		return
+	}
+	index, err1 := strconv.Atoi(strings.TrimSpace(toChooseIdRow))
+	if err1 != nil {
+		return
+	}
+	if 0 <= index && index < len(cfg.modeStore) {
+		cfg.modeName = cfg.modeStore[index].Kklxmc
+		cfg.kklxdm = cfg.modeStore[index].Kklxdm
+		cfg.xkkz_id = cfg.modeStore[index].Xkkz_id
+		fmt.Println("模式设置为:", cfg.modeName)
+	} else {
+		fmt.Println("无效的选择")
+	}
+	//fmt.Println("然后就没了")
+	//time.Sleep(1 * time.Second)
+}
+
+func (a *APIClient) devMode(cfg *APIConfig) {
+
 }
 
 func (a *APIClient) customGetSelected() {

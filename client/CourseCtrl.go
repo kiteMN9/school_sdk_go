@@ -316,23 +316,21 @@ func (a *APIClient) XK(cfg *APIConfig, cust *SafeCustomCourseSlice) {
 		log.Println("进入 XK 功能")
 		if len(cust.items) != 0 {
 		} else {
-			listP := a.getCourseList(ctx, cfg)
+			list := a.getCourseList(ctx, cfg)
 			if errors.Is(ctx.Err(), context.Canceled) {
 				return
 			}
-			cust.courseList2custom(listP)
+			cust.courseList2custom(list)
 			same, _ := cust.isKchIdAllSame()
 			if same {
-				detailP := a.getCourseDetail(ctx, cfg, cust.Get(0).Kch_id)
-				if errors.Is(ctx.Err(), context.Canceled) || detailP == nil {
+				detail := a.getCourseDetail(ctx, cfg, cust.Get(0).Kch_id)
+				if errors.Is(ctx.Err(), context.Canceled) || detail == nil {
 					return
 				}
-				cust.courseDetail2custom(detailP)
+				cust.courseDetail2custom(detail)
 			}
-
 		}
 		var toChooseId string
-		var toChooseIdRow string
 		for toChooseId != "-1" {
 			select {
 			case <-ctx.Done():
@@ -340,10 +338,8 @@ func (a *APIClient) XK(cfg *APIConfig, cust *SafeCustomCourseSlice) {
 			default:
 				// 模拟主逻辑
 				cust.printCourse(cfg)
-				fmt.Print("输入要选择的课程前的序号(-1退出,其它刷新): ")
-				_, err := fmt.Scanln(&toChooseIdRow)
-				if err == io.EOF {
-					wg.Wait()
+				toChooseIdRow, err := utils.UserInputWithSigInt("输入要选择的课程前的序号(-1退出,其它刷新): ")
+				if err != nil {
 					return
 				}
 				toChooseId = strings.TrimSpace(toChooseIdRow)
@@ -359,23 +355,28 @@ func (a *APIClient) XK(cfg *APIConfig, cust *SafeCustomCourseSlice) {
 					// continue
 				}
 				if 0 <= index && index < len(cust.items) {
-					log.Println("index in range")
-					if cust.items[index].Do_jxb_id == "" {
-						detailP := a.getCourseDetail(ctx, cfg, cust.Get(index).Kch_id)
-						if errors.Is(ctx.Err(), context.Canceled) || detailP == nil {
+					log.Println("user select:", index, cust.items[index].Jxbmc)
+					jxbrl, err := strconv.Atoi(cust.Get(index).Jxbrl)
+					if err != nil {
+						log.Println(err)
+					}
+					rs, err := strconv.Atoi(cust.Get(index).Yxzrs)
+					if err != nil {
+						log.Println(err)
+					}
+					if cust.items[index].Do_jxb_id == "" || rs > jxbrl {
+						detail := a.getCourseDetail(ctx, cfg, cust.Get(index).Kch_id)
+						if errors.Is(ctx.Err(), context.Canceled) || detail == nil {
 							return
 						}
-						cust.courseDetail2custom(detailP)
+						cust.courseDetail2custom(detail)
 					}
 					// 单独 printDetail
 					FullPrintWithEnd(index, cust.items[index])
 					// 让用户确认选择
-					var userInput string
-					fmt.Printf("确认选择课程 \033[1;36m%s\033[0m ? (Y/n,默认Y): ", cust.items[index].Jxbmc)
-					_, err2 := fmt.Scanln(&userInput)
-					if err2 == io.EOF {
-						wg.Wait()
-						break
+					userInput, err2 := utils.UserInputWithSigInt(fmt.Sprintf("确认选择课程 \033[1;36m%s\033[0m ? (Y/n,默认Y): ", cust.items[index].Jxbmc))
+					if err2 != nil {
+						return
 					}
 					userInput = strings.ToLower(userInput)
 					log.Printf("确认选择课程, userInput: (%s)", userInput)
@@ -387,18 +388,19 @@ func (a *APIClient) XK(cfg *APIConfig, cust *SafeCustomCourseSlice) {
 					time.Sleep(600 * time.Millisecond)
 				} else if index == -2 {
 					// refresh print
-					listP := a.getCourseList(ctx, cfg)
+					list := a.getCourseList(ctx, cfg)
 					if errors.Is(ctx.Err(), context.Canceled) {
 						return
 					}
-					cust.courseList2custom(listP)
+					cust.courseList2custom(list)
+					cust.fix(cfg.yl, list)
 					same, _ := cust.isKchIdAllSame()
 					if same {
-						detailP := a.getCourseDetail(ctx, cfg, cust.Get(0).Kch_id)
-						if errors.Is(ctx.Err(), context.Canceled) || detailP == nil {
+						detail := a.getCourseDetail(ctx, cfg, cust.Get(0).Kch_id)
+						if errors.Is(ctx.Err(), context.Canceled) || detail == nil {
 							return
 						}
-						cust.courseDetail2custom(detailP)
+						cust.courseDetail2custom(detail)
 					}
 
 				}
@@ -413,6 +415,26 @@ func (a *APIClient) XK(cfg *APIConfig, cust *SafeCustomCourseSlice) {
 		cancel()
 	}
 	return
+}
+
+func (s *SafeCustomCourseSlice) fix(yl bool, list []CourseListDic) {
+	if !yl {
+		return
+	}
+	s.mu.Lock()         // 加锁
+	defer s.mu.Unlock() // 确保解锁
+	for i := range s.items {
+		found := false
+		for j := range list {
+			if list[j].Jxb_id == s.items[i].Jxb_id {
+				found = true
+				break
+			}
+		}
+		if !found && s.items[i].Jxbrl != "" {
+			s.items[i].Yxzrs = s.items[i].Jxbrl
+		}
+	}
 }
 
 func refreshWant(cfg *APIConfig) {

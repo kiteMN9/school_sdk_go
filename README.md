@@ -18,5 +18,5 @@ Go 1.25
 ## Usage
 ```Shell
 $ go build
-$ ./school_sdk_go -h
+$ ./school_sdk -h
 ```

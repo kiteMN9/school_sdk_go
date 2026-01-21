@@ -7,3 +7,6 @@
 /logs/
 /config.json
 /school_sdk.exe
+/SMTP.json
+/startTime.json
+/want.xlsx

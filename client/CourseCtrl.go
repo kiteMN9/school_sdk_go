@@ -201,6 +201,7 @@ func (a *APIClient) Other(cfg *APIConfig) {
 mail.测试邮件功能
 gpa.查看GPA
 color.色彩测试
+en,zh.中英文切换
 ********************************` + "\n")
 		code, err = utils.UserInputWithSigInt("请输入功能代码(-1 退出其他):")
 		if err != nil {
@@ -248,6 +249,10 @@ color.色彩测试
 			a.getGPA()
 		case "color":
 			utils.TestTerminalColors()
+		case "en":
+			a.SwitchLanguage("en_US")
+		case "zh":
+			a.SwitchLanguage("zh_CN")
 		default:
 			fmt.Printf("没有 %s 哦\n", code)
 		}

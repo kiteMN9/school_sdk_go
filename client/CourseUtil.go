@@ -1,6 +1,7 @@
 package client
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -217,23 +218,28 @@ func (a *APIClient) getPubParams(ctx context.Context, cfg *APIConfig) {
 			continue
 		}
 		// fmt.Println(htmlContent)
-		docNode, err1 := htmlquery.Parse(strings.NewReader(htmlContent)) // 相当于etree.HTML()
+		docNode, err1 := htmlquery.Parse(bytes.NewReader(resp.Bytes())) // 相当于etree.HTML()
 		if err1 != nil {
 			log.Println(err1)
 			fmt.Println("\r他妈个逼这什么情况，完成请求然后解析出错？")
 			log.Println("他妈个逼这什么情况，完成请求然后解析出错？")
 			continue
 		}
-		statNode := htmlquery.Find(docNode, `//div[@class="nodata"]/span/text()`)
-		if len(statNode) != 0 {
-			jdStr := strings.TrimSpace(htmlquery.InnerText(statNode[0]))
-			fmt.Printf("\r%d %s", i, jdStr) // 对不起，当前不属于选课阶段
-			log.Printf("%d %s", i, jdStr)
-			needEnter = true
-			time.Sleep(650 * time.Millisecond)
-
+		if getXpathValue(docNode, "iskxk") == "0" { // 是否可选课
+			statNode := htmlquery.Find(docNode, `//div[@class="nodata"]/span/text()`)
+			if len(statNode) != 0 {
+				jdStr := strings.TrimSpace(htmlquery.InnerText(statNode[0]))
+				// Sorry, it is not in the elective stage at present. If necessary, please contact the administrator.
+				// 对不起，当前不属于选课阶段，如有需要，请与管理员联系！
+				fmt.Printf("\r%d %s", i, jdStr) // 对不起，当前不属于选课阶段
+				log.Printf("%d %s", i, jdStr)
+				needEnter = true
+				time.Sleep(650 * time.Millisecond)
+				continue
+			}
 			continue
 		}
+
 		if needEnter {
 			fmt.Println()
 			needEnter = false
@@ -966,6 +972,12 @@ func (s *SafeCustomCourseSlice) printCourse(cfg *APIConfig) {
 }
 
 func FullPrint(i int, d CustomCourseDic) {
+	//var showName string
+	//if strings.Contains(d.Jxbmc, d.Kcmc) {
+	//	showName = d.Kcmc
+	//} else {
+	//	showName = d.Jxbmc
+	//}
 	if d.Want {
 		fmt.Printf("\033[0;33;40m-----👇--------%d----⬇-want-⬇---%d---------------------\033[0m\n", i, i)
 		fmt.Printf("\033[1;36m%2d\033[0m: %-5s %3s %-2s\n", i, d.Jxbmc, d.Xqumc, d.Sksj)

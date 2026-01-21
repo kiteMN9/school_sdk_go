@@ -8,6 +8,7 @@ const (
 	PublicKey  = "xtgl/login_getPublicKey.html"  // 登录公钥获取
 	LOGOUT     = "logout"                        // 登出
 	LOGOUT2    = "xtgl/login_logoutAccount.html" // 正方9.0登录会有
+	Language   = "xtgl/init_changeLocal.html"
 )
 
 const (

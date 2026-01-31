@@ -295,7 +295,7 @@ func (a *APIClient) getRawCsrfToken(wg *sync.WaitGroup, csrf *string) {
 	for {
 		// log.Println("csrf debug")
 		resp, err := a.Http.R().
-			SetRetryCount(1).
+			SetRetryCount(0).
 			Get(baseCfg.LoginIndex) // ?language=zh_CN&_t=MiniSecond
 
 		if err != nil {

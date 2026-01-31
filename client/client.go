@@ -41,11 +41,13 @@ func NewBasicClient(baseURL string, timeout time.Duration) *resty.Client {
 		client.EnableTrace()
 	}
 
-	client.EnableRetryDefaultConditions()
-	client.SetRetryCount(5).
-		SetRetryWaitTime(129 * time.Millisecond). // 设置两次重试之间的基础等待时间
-		SetRetryMaxWaitTime(3 * time.Second).     // 设置两次重试之间的最大等待时间
-		SetTimeout(timeout)                       // 整个请求的超时时间
+	//client.EnableRetryDefaultConditions()
+	client.SetRetryCount(0)    // resty 库有点bug一旦失败及其影响性能
+	client.SetTimeout(timeout) // 整个请求的超时时间
+
+	// 设置两次重试之间的基础等待时间
+	client.SetRetryWaitTime(1129 * time.Millisecond).
+		SetRetryMaxWaitTime(3 * time.Second) // 设置两次重试之间的最大等待时间
 
 	refer, _ := JoinURL(baseURL, baseCfg.LoginIndex)
 	client.SetHeader("Referer", refer)

@@ -16,32 +16,24 @@ import (
 func (a *APIClient) CheckSession(ctx context.Context) bool {
 	resp, err := a.Http.R().
 		SetRetryCount(0).
-		//SetQueryParams(map[string]string{
-		//"gnmkdm": "N100801",
-		//"layout": "default",
-		//"su": a.Account,
-		//}).
 		SetContext(ctx).
-		SetTimeout(11 * time.Second).
-		//Get(baseCfg.InfoJson)
-		Get("/xtgl/index_cxGxDlztxx.html?dlztxxtj_id=")
+		SetTimeout(11*time.Second).
+		SetQueryParam("dlztxxtj_id", "").
+		Get(baseCfg.LoginStatus)
 
 	if err != nil {
 		if errors.Is(ctx.Err(), context.Canceled) {
 			log.Println("保持登录已取消")
 			return true
-		} else {
-			fmt.Println(err)
 		}
+		fmt.Println(err)
 	}
 
 	if utils.UserIsLogin(a.Account, resp.String()) && !a.CheckLogout302(resp) {
-		// Ctrl里有关重定向是302，不关是200
 		return true
-	} else {
-		fmt.Println(resp.Status())
-		return a.ReLogin()
 	}
+	fmt.Println("Login check:", resp.Status())
+	return a.ReLogin()
 }
 
 func (a *APIClient) CheckSession2(ctx context.Context) bool {
@@ -83,11 +75,8 @@ func (a *APIClient) LoginCheck(resp *resty.Response) bool {
 		//if strings.Contains(resp.String(), "Sorry, the page you are looking for is currently unavailable.") {
 		fmt.Println("http状态码:", resp.Status())
 		fmt.Println(resp.String())
-		fmt.Print("程序已暂停，Enter以继续 ")
-		_, err := fmt.Scanln()
-		if err != nil {
-			return false
-		}
+		fmt.Print("程序暂停一会")
+		time.Sleep(4 * time.Second)
 		return true
 	}
 	return utils.UserIsLogin(a.Account, resp.String()) && !a.CheckLogout302(resp)

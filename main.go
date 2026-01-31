@@ -101,6 +101,6 @@ func main() {
 
 	//apiClient.GetScore("2024", 2)
 	close(done)
-
+	//apiClient.GetScore(client.GetSuggestYearTerm())
 	apiClient.GetCourseCtl(modeCode)
 }

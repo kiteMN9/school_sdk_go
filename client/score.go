@@ -94,10 +94,10 @@ func formatPrintScoreAll(items []Score) {
 		}
 	}
 	// 做一个总结功能，总结一下获得多少学分拖欠多少学分，获得多少绩点 平均多少
-	if jqxf != 0 {
+	if gksl != 0 {
 		fmt.Println("挂科数量:"+BoldYellow, gksl, Reset+"总课程数:", len(items), "积欠学分:"+BoldYellow, jqxf, Reset)
 	} else {
-		fmt.Println("挂科数量:"+BoldYellow, gksl, Reset+"总课程数:", len(items))
+		fmt.Println("总课程数:", len(items))
 	}
 	log.Printf("%+v\n", items)
 }
@@ -196,8 +196,27 @@ func (a *APIClient) GetScoreWithInput() {
 	a.GetScore(year, termInt)
 }
 
+func GetSuggestYearTerm() (string, int) {
+	now := time.Now()
+	month := now.Month() // time.Month类型（1-12）
+	var year = ""
+	var term int
+	switch {
+	case month >= 1 && month <= 6:
+		year = fmt.Sprintf("%d", now.Year()-1)
+		term = 1
+	case month >= 7 && month <= 12:
+		year = fmt.Sprintf("%d", now.Year())
+		term = 2
+	}
+	return year, term
+}
+
 func GetUserInputYearTerm() (string, int) {
-	var year, term, line = "2025", "1", ""
+	year, termI := GetSuggestYearTerm()
+	var term = fmt.Sprintf("%d", termI)
+	var line = ""
+
 	var termInt int
 
 	fmt.Printf("\033[1;36m%2s\033[0m 年 \033[1;36m%2s\033[0m 学期\n", year, term)
@@ -216,9 +235,15 @@ func GetUserInputYearTerm() (string, int) {
 		}
 	}
 	var term_ string
+	var output string
+	if term == "1" {
+		output = "学期(\u001B[1;36m1\u001B[0m,2,3):"
+	} else {
+		output = "学期(1,\u001B[1;36m2\u001B[0m,3):"
+	}
 	for {
 		var err error
-		line, err = utils.UserInputWithSigInt("学期(\u001B[1;36m1\u001B[0m,2,3):")
+		line, err = utils.UserInputWithSigInt(output)
 		if err != nil {
 			return "0", 0
 		}
@@ -256,35 +281,35 @@ type ScoreRaw struct {
 type Score struct {
 	//# njdm_id -> 年级代码
 	Bfzcj   string `json:"bfzcj"` // 百分制成绩
-	Bh      string `json:"bh"`    //
+	Bh      string `json:"bh"`    // 20230055
 	Bh_id   string `json:"bh_id"`
 	Bj      string `json:"bj"`
 	Bzxx    string `json:"bzxx"`    // 备注信息
 	Cjbz    string `json:"cjbz"`    // 成绩备注 缺考
-	Czr     string `json:"czr"`     // cz人
+	Czr     string `json:"czr"`     // cz人 王艳芳
 	Cj      string `json:"cj"`      // 成绩
 	Cjbdczr string `json:"cjbdczr"` // 陈爱华
 	Cjbdsj  string `json:"cjbdsj"`  // 成绩bd时间？
 	Cjsfzf  string `json:"cjsfzf"`  // 成绩是否作废
 
-	Date               string `json:"date"`               // 二○二五年六月一日
+	Date               string `json:"date"`               // 二○二五年六月二十二日
 	DateDigit          string `json:"dateDigit"`          // 2025年6月01日
 	DateDigitSeparator string `json:"dateDigitSeparator"` // 2025-6-01
 
-	Day    string `json:"day"`    //
+	Day    string `json:"day"`    // 22
 	Jd     string `json:"jd"`     // 绩点 1.00
 	Jg_id  string `json:"jg_id"`  // 003
 	Jgmc   string `json:"jgmc"`   // 化学化工学院、应急管理与安全工程学院（合署）
 	Jgpxzd string `json:"jgpxzd"` // 1
 	Jsxm   string `json:"jsxm"`   // 教师姓名
-	Jxb_id string `json:"jxb_id"` //
-	Jxbmc  string `json:"jxbmc"`  // 教学班名称
+	Jxb_id string `json:"jxb_id"` // 1C6308B42E124FA6E065FCFCFE1D0407
+	Jxbmc  string `json:"jxbmc"`  // 教学班名称 有机化学A（下）-0002
 	Kcbj   string `json:"kcbj"`   // 课程标记 主修
 
-	Kch    string `json:"kch"`    // 课程号
-	Kch_id string `json:"kch_id"` // 课程号ID
+	Kch    string `json:"kch"`    // 课程号 0003021129
+	Kch_id string `json:"kch_id"` // 课程号ID 0003021129
 	Kclbmc string `json:"kclbmc"` // 课程类别 专业必修课
-	Kcmc   string `json:"kcmc"`   // 课程名称
+	Kcmc   string `json:"kcmc"`   // 课程名称 有机化学A（下）
 	Kcxzdm string `json:"kcxzdm"` // 课程性质名称001
 	Kcxzmc string `json:"kcxzmc"` // 课程性质名称 选修
 
@@ -302,7 +327,7 @@ type Score struct {
 	Sfzh    string `json:"sfzh"`    // 身份证号码
 	Sfzx    string `json:"sfzx"`    // 是
 	Tjrxm   string `json:"tjrxm"`   // 提交人姓名
-	Tjsj    string `json:"tjsj"`    // 提交时间 2024-01-01 10:00:00
+	Tjsj    string `json:"tjsj"`    // 提交时间 2025-01-01 10:00:00
 	Xb      string `json:"xb"`      // 性别 男
 	Xbm     string `json:"xbm"`     // 性别码 男:1
 	Xf      string `json:"xf"`      // 学分 2.5

@@ -16,9 +16,11 @@ import (
 	"school_sdk/utils"
 )
 
+var version = "school_sdk_go 1.2.7"
+
 func main() {
 	var cfgFileName, modeCode string
-	var version = "school_sdk_go 1.2.7"
+
 	// 版本信息
 	verFlag := flag.Bool("V", false, "Print version information")
 	// 绑定命令行参数到变量
@@ -33,6 +35,7 @@ func main() {
 
 	cas2 := flag.Bool("cas", false, "启用cas2登录方式")
 	cas2wx := flag.Bool("wx", false, "启用cas2微信登录")
+
 	// 解析命令行参数
 	flag.Parse()
 	if *verFlag {
@@ -60,14 +63,13 @@ func main() {
 	log.Println("程序启动") // 写入文件和控制台
 	startTime := time.Now()
 
-	fileConfig := utils.ReadConfig(cfgFileName)
+	fCfg := utils.ReadConfig(cfgFileName)
 
 	if *campus && !*cas2wx {
-		fmt.Println("当前用户:", utils.MaskString(fileConfig.Account, 2, 7))
+		fmt.Println("当前用户:", utils.MaskString(fCfg.Account, 2, 7))
 	} else if !*cas2wx {
-		fmt.Println("当前用户:", fileConfig.Account)
+		fmt.Println("当前用户:", fCfg.Account)
 	}
-
 	url := ""
 	if *campus {
 		list := []string{
@@ -81,11 +83,12 @@ func main() {
 		selected := list[randomIndex]
 		url = selected
 	} else {
-		url = fileConfig.URL
+		url = fCfg.URL
 	}
 
-	cliConfig := client.NewConfig(url, fileConfig.Verify, 15*time.Second, fileConfig.UserAgent)
-	apiClient := client.NewAPIClient(cliConfig, fileConfig.Account, fileConfig.Passwd, cfgFileName, *cas2, *cas2wx, fileConfig.CasPasswd)
+	cliConfig := client.NewConfig(url, fCfg.Verify, 16*time.Second, fCfg.UserAgent)
+	apiClient := client.NewAPIClient(cliConfig, fCfg.Account, fCfg.Passwd, cfgFileName, *cas2 || fCfg.CasLogin, *cas2wx, fCfg.CasPasswd)
+	//apiClient := client.NewClientWithCookieJar(cliConfig, fCfg.Account, jar)
 
 	if apiClient.Login() {
 		diffTime := time.Since(startTime)

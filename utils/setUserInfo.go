@@ -19,7 +19,8 @@ type ConfigData struct {
 	CasPasswd string `json:"casPasswd"`
 	UserAgent string `json:"ua"`
 	//Verify    string `json:"verify"`
-	Verify bool `json:"verify" default:"true"`
+	Verify   bool `json:"verify" default:"true"`
+	CasLogin bool `json:"casLogin" default:"false"`
 }
 
 func SetConfigDefault(filename string) {
@@ -30,6 +31,7 @@ func SetConfigDefault(filename string) {
 		CasPasswd: "cas2password",
 		UserAgent: cfg.FireFoxUA,
 		Verify:    true,
+		CasLogin:  false,
 	}
 	//initialData := ConfigData{
 	//	URL:       "http://www.gdjw.zjut.edu.cn/jwglxt",
@@ -41,6 +43,8 @@ func SetConfigDefault(filename string) {
 }
 
 func SetConfig(filename string, configData ConfigData) {
+	// filename := "config.json"
+
 	dataByte, err := json.MarshalIndent(configData, "", "  ") // 无前缀，两个空格缩进
 	if err != nil {
 		panic(fmt.Sprintf("JSON序列化失败: %v", err))
@@ -56,10 +60,15 @@ func ReadConfig(filename string) *ConfigData {
 		SetConfigDefault(filename)
 	}
 	byteValue, err := os.ReadFile(filename)
+	// file, err := os.Open(filename)
 	if err != nil {
 		fmt.Println(err)
 		panic(err)
 	}
+	// defer file.Close()
+
+	// 读取文件内容
+	// byteValue, _ := ioutil.ReadAll(file)
 
 	// 将 JSON 数据解析到结构体
 	var config ConfigData
@@ -79,8 +88,6 @@ func ReadConfig(filename string) *ConfigData {
 	//fmt.Println("<UNK>:", config)
 	return &config
 }
-
-// 这部分实现的不咋地
 func SetConfigUserInfo(filename string, config *ConfigData) *ConfigData {
 	var configNew ConfigData
 	configNew.Verify = config.Verify

@@ -32,7 +32,7 @@ func (a *APIClient) ReLogin() bool {
 	loginMU.Lock()
 	defer loginMU.Unlock()
 	// 多线程情况下还得加个1~2秒的成功登录冷静期，防止一解锁就重复登录
-	if time.Since(lastSuccessTime) < 1000*time.Millisecond {
+	if time.Since(lastSuccessTime) < 1100*time.Millisecond {
 		return true
 	}
 	if a.onlyCookieMethod {
@@ -192,7 +192,7 @@ func (a *APIClient) ssoLogin2(location string) bool {
 	return false
 }
 
-func (a *APIClient) getCaptchaLogin(LoginExtend string) bool {
+func (a *APIClient) getCaptchaLogin(LoginExtend []byte) bool {
 	// 控制整个滑块验证码登录
 	var csrfToken string
 	var rtk string
@@ -239,7 +239,7 @@ func (a *APIClient) getCaptchaLogin(LoginExtend string) bool {
 	return false
 }
 
-func (a *APIClient) captchaControl(wg *sync.WaitGroup, LoginExtend string, csrfToken, rtk, encryptedResult, t *string) {
+func (a *APIClient) captchaControl(wg *sync.WaitGroup, LoginExtend []byte, csrfToken, rtk, encryptedResult, t *string) {
 	// 控制除了RTK的整个验证码识别过程
 	defer wg.Done()
 	captchaStartTime := time.Now()
@@ -527,9 +527,9 @@ type captchaVerifyData struct {
 	Status string `json:"status"` // success, fail
 }
 
-func (a *APIClient) captchaVerify(rtk, LoginExtend string, x int) bool {
-	captchaVerifyResult := check_code.GetTrackString(x, 480)
-	if captchaVerifyResult == "" {
+func (a *APIClient) captchaVerify(rtk string, LoginExtend []byte, x int) bool {
+	captchaVerifyResult := check_code.GetTrackByte(x, 480)
+	if captchaVerifyResult == nil {
 		return false
 	}
 	var result captchaVerifyData
@@ -540,9 +540,9 @@ func (a *APIClient) captchaVerify(rtk, LoginExtend string, x int) bool {
 				"type":       "verify",
 				"rtk":        rtk,
 				"time":       fmt.Sprint(time.Now().UnixMilli()),
-				"mt":         base64.StdEncoding.EncodeToString([]byte(captchaVerifyResult)),
+				"mt":         base64.StdEncoding.EncodeToString(captchaVerifyResult),
 				"instanceId": "zfcaptchaLogin",
-				"extend":     base64.StdEncoding.EncodeToString([]byte(LoginExtend)),
+				"extend":     base64.StdEncoding.EncodeToString(LoginExtend),
 			}).Post(baseCfg.CAPTCHA)
 
 		if err != nil {
@@ -649,7 +649,7 @@ func isLogin(account, html string) (bool, error) {
 	return false, nil
 }
 
-func generateLoginExtend(UserAgent string) string {
+func generateLoginExtend(UserAgent string) []byte {
 	// 查找第一个 '/' 的位置
 	slashIndex := strings.Index(UserAgent, "/")
 	modifiedUserAgent := UserAgent
@@ -672,6 +672,6 @@ func generateLoginExtend(UserAgent string) string {
 
 	// 序列化为 JSON 字符串
 	jsonBytes, _ := json.Marshal(loginExtend)
-	LoginExtend := string(jsonBytes)
-	return LoginExtend
+	//LoginExtend := string(jsonBytes)
+	return jsonBytes
 }

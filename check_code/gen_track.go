@@ -80,10 +80,10 @@ func GetTrack(distance int, y int) []TrackPoint {
 //	return json.MarshalIndent(track, "", "  ")
 //}
 
-func GetTrackString(x, y int) string {
+func GetTrackByte(x, y int) []byte {
 	trackData := GetTrack(x, y)
 	if trackData == nil {
-		return ""
+		return nil
 	}
 
 	// 直接序列化
@@ -91,7 +91,7 @@ func GetTrackString(x, y int) string {
 	if err != nil {
 		panic(err)
 	}
-	strTrack := string(jsonData)
+	//strTrack := string(jsonData)
 	// println(str_track)
-	return strTrack
+	return jsonData
 }

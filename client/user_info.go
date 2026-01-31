@@ -32,6 +32,7 @@ func (a *APIClient) GetJsonInfo() UserInfo {
 		a.ReLogin()
 	}
 
+	//a.Name = result.Xm
 	return result
 }
 
@@ -39,8 +40,9 @@ func PrintStudentInfo2(info UserInfo) {
 	if info.Xm == "" {
 		return
 	}
-	fmt.Printf("姓名:%-3s 班级:%-6s 学号:%-6s 毕业学校:%s\n", info.Xm, info.BhId, info.XhId, info.Byzx)
-	fmt.Printf("学院:%-6s 性别:%-1s 年级:%-4s\n", info.JgId, info.Xbm, info.NjdmId)
+	//fmt.Printf("姓名:%-3s 班级:%-6s 学号:%-6s 毕业学校:%s\n", info.Xm, info.BhId, info.XhId, info.Byzx)
+	fmt.Printf("%-3s %-6s %-6s %-1s 毕业学校:%s\n", info.Xm, info.BhId, info.XhId, info.Xbm, info.Byzx)
+	fmt.Printf("学院:%-6s 年级:%-4s\n", info.JgId, info.NjdmId)
 }
 
 type UserInfo struct {

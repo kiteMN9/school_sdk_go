@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"school_sdk/client/GPA"
 	baseCfg "school_sdk/config"
 	"school_sdk/utils"
 	"strings"
@@ -653,7 +654,7 @@ func (a *APIClient) getGPA() {
 		fmt.Println(resp.Duration())
 	}
 	if resp.IsSuccess() {
-
+		GPA.GPA(resp.String())
 	}
-	log.Println(utils.RemoveEmptyLines(resp.String()))
+	//log.Println(utils.RemoveEmptyLines(resp.String()))
 }

@@ -7,7 +7,12 @@
 /logs/
 /config.json
 /school_sdk.exe
+/school_sdk
 /SMTP.json
 /startTime.json
 /want.xlsx
-replace-rules.txt
+/replace-rules.txt
+/kaptcha.png
+/WXQrcode.png
+/qrcode.png
+/collect_jwxt.txt

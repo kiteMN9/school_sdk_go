@@ -32,7 +32,7 @@ func (a *APIClient) GetJsonInfo() UserInfo {
 		a.ReLogin()
 	}
 
-	//a.Name = result.Xm
+	a.Name = result.Xm
 	return result
 }
 

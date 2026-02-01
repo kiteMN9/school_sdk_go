@@ -21,6 +21,7 @@ type APIClient struct {
 	Config           *Config
 	Account          string // 账号、学号
 	passwd           string // 密码
+	Name             string
 	Http             *resty.Client
 	onlyCookieMethod bool
 	enableCas2       bool

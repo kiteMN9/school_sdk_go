@@ -193,16 +193,17 @@ func (a *APIClient) Other(cfg *APIConfig) {
 		var err error
 		fmt.Printf(`
 ********************************
-1.课程模式切换（待测试）
-2.启用邮件功能(SMTP)
-3.设置教务系统课程查询参数
+1.课程模式切换
+2.邮件功能(SMTP) %t
+3.设置余量 %t
 4.查询成绩
 5.自定义已选课程查询
 mail.测试邮件功能
 gpa.查看GPA
 color.色彩测试
 en,zh.中英文切换
-********************************` + "\n")
+who,info.我是谁 %s
+********************************`+"\n", cfg.smtpConfig.Enable, cfg.yl, a.Account)
 		code, err = utils.UserInputWithSigInt("请输入功能代码(-1 退出其他):")
 		if err != nil {
 			return
@@ -212,13 +213,17 @@ en,zh.中英文切换
 		case "-1", ".", "@":
 			return
 		case "1":
-			setMode(cfg)
+			a.setMode(cfg)
 		case "2":
-			cfg.smtpConfig = utils.SMTPReadConfig()
-			cfg.smtpConfig.Enable = true
-			fmt.Println(cfg.smtpConfig.Host, cfg.smtpConfig.Port)
-			fmt.Println(cfg.smtpConfig.From)
-			fmt.Println(cfg.smtpConfig.To)
+			if cfg.smtpConfig.Enable {
+				cfg.smtpConfig.Enable = false
+			} else {
+				cfg.smtpConfig = utils.SMTPReadConfig()
+				cfg.smtpConfig.Enable = true
+				fmt.Println(cfg.smtpConfig.Host, cfg.smtpConfig.Port)
+				fmt.Println(cfg.smtpConfig.From)
+				fmt.Println(cfg.smtpConfig.To)
+			}
 		case "3":
 			if cfg.yl {
 				cfg.yl = false
@@ -253,25 +258,38 @@ en,zh.中英文切换
 			a.SwitchLanguage("en_US")
 		case "zh":
 			a.SwitchLanguage("zh_CN")
+		case "who":
+			if a.Name == "" {
+				a.GetJsonInfo()
+			}
+			fmt.Println(a.Account, a.Name)
+		case "info":
+			PrintStudentInfo2(a.GetJsonInfo())
+		case "dev":
+			a.devMode(cfg)
 		default:
 			fmt.Printf("没有 %s 哦\n", code)
 		}
 	}
 }
 
-func setMode(cfg *APIConfig) {
+func (a *APIClient) setMode(cfg *APIConfig) {
+	context.Background()
 	log.Println("特殊课程、通识选修课模式切换:", cfg.modeStore)
 	if len(cfg.modeStore) == 0 {
 		fmt.Println("没有模式切换选项哦")
 		return
 	}
-	for _, item := range cfg.modeStore {
-		fmt.Println(item.Kklxmc)
-		fmt.Println(item.Kklxdm)
-		fmt.Println(item.Xkkz_id)
-		fmt.Println()
+	fmt.Println()
+	for i, item := range cfg.modeStore {
+		fmt.Println("====================")
+		//fmt.Println(i, item.Kklxmc)
+		//fmt.Println(i, item.Kklxdm)
+		//fmt.Println(i, item.Xkkz_id)
+		fmt.Printf("%d: %s  %s\n", i, item.Kklxmc, item.Kklxdm)
 	}
-	toChooseIdRow, err := utils.UserInputWithSigInt("输入模式前的序号: ")
+	fmt.Println("========end=========")
+	toChooseIdRow, err := utils.UserInputWithSigInt("输入模式前的序号:")
 	if err != nil {
 		return
 	}
@@ -286,6 +304,8 @@ func setMode(cfg *APIConfig) {
 		cfg.modeName = cfg.modeStore[index].Kklxmc
 		cfg.kklxdm = cfg.modeStore[index].Kklxdm
 		cfg.xkkz_id = cfg.modeStore[index].Xkkz_id
+		fmt.Println("等待模式修改:", cfg.modeName)
+		a.getCourseListPre(context.Background(), cfg, cfg.xkkz_id, cfg.xszxzt)
 		fmt.Println("模式设置为:", cfg.modeName)
 	} else {
 		fmt.Println("无效的选择")

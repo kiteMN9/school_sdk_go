@@ -22,8 +22,12 @@ func (a *APIClient) CheckSession(ctx context.Context) bool {
 		Get(baseCfg.LoginStatus)
 
 	if err != nil {
-		if errors.Is(ctx.Err(), context.Canceled) {
+		if errors.Is(err, context.Canceled) {
 			log.Println("保持登录已取消")
+			return true
+		}
+		if errors.Is(err, context.DeadlineExceeded) {
+			fmt.Println("请求超时:", resp.Duration())
 			return true
 		}
 		fmt.Println(err)
@@ -50,7 +54,7 @@ func (a *APIClient) CheckSession2(ctx context.Context) bool {
 		Get(baseCfg.StudentName) // /xtgl/index_cxGxDlztxx.html?dlztxxtj_id=
 
 	if err != nil {
-		if errors.Is(ctx.Err(), context.Canceled) {
+		if errors.Is(err, context.Canceled) {
 			log.Println("保持登录已取消")
 			return true
 		} else {

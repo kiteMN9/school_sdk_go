@@ -33,6 +33,10 @@ func NewBasicClient(baseURL string, timeout time.Duration) *resty.Client {
 		SetRedirectPolicy(resty.NoRedirectPolicy()).
 		SetBaseURL(baseURL)
 
+	//transport, _ := client.HTTPTransport()
+	//fmt.Println(transport.IdleConnTimeout)
+	//fmt.Println(transport.ResponseHeaderTimeout)
+
 	if os.Getenv("proxy") == "1" {
 		client.SetProxy("http://127.0.0.1:8866")
 		tls := client.TLSClientConfig()

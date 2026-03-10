@@ -35,7 +35,7 @@ func parseKklxdmXkkzId(cfg *APIConfig, docNode *html.Node) {
 		// 处理 onclick 字符串
 		tmp := strings.TrimPrefix(onclick, "queryCourse(this,'")
 		parts := strings.Split(tmp, "','")
-		log.Println("parts:", parts)
+		//log.Println("parts:", parts)
 		if len(parts) < 2 {
 			continue
 		}
@@ -48,7 +48,7 @@ func parseKklxdmXkkzId(cfg *APIConfig, docNode *html.Node) {
 		store.Kklxdm = kklxdm
 		store.Xkkz_id = xkkz_id
 		cfg.modeStore = append(cfg.modeStore, store)
-		fmt.Println("store:", store)
+		//fmt.Println("store:", store)
 	}
 	log.Println("modeStore:", cfg.modeStore)
 }

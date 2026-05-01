@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	baseCfg "school_sdk/config"
 	"school_sdk/utils"
 	"strings"
@@ -33,7 +34,7 @@ func (a *APIClient) CheckSession(ctx context.Context) bool {
 		fmt.Println(err)
 	}
 
-	if utils.UserIsLogin(a.Account, resp.String()) && !a.CheckLogout302(resp) {
+	if utils.UserIsLogin(a.Config.Account, resp.String()) && !a.CheckLogout302(resp) {
 		return true
 	}
 	fmt.Println("Login check:", resp.Status())
@@ -62,7 +63,7 @@ func (a *APIClient) CheckSession2(ctx context.Context) bool {
 		}
 	}
 
-	if utils.UserIsLogin(a.Account, resp.String()) && !a.CheckLogout302(resp) {
+	if utils.UserIsLogin(a.Config.Account, resp.String()) && !a.CheckLogout302(resp) {
 		// Ctrl里有关重定向是302，不关是200
 		return true
 	} else {
@@ -83,5 +84,22 @@ func (a *APIClient) LoginCheck(resp *resty.Response) bool {
 		time.Sleep(4 * time.Second)
 		return true
 	}
-	return utils.UserIsLogin(a.Account, resp.String()) && !a.CheckLogout302(resp)
+	return utils.UserIsLogin(a.Config.Account, resp.String()) && !a.CheckLogout302(resp)
+}
+
+func (a *APIClient) CheckLogout302(resp *resty.Response) bool {
+	if resp == nil {
+		return false
+	}
+	if resp.StatusCode() == http.StatusFound {
+		location := resp.Header().Get("Location")
+		if strings.Contains(location, baseCfg.LoginIndex) || strings.Contains(location, a.Http.BaseURL()) {
+			//println("Logout302")
+			return true
+		} else {
+			log.Println("CheckLogout302:", resp.Header())
+			fmt.Println("意料之外的错误！", resp.Header())
+		}
+	}
+	return false
 }

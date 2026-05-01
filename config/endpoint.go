@@ -2,7 +2,7 @@ package config
 
 const (
 	LoginIndex  = "/xtgl/login_slogin.html"        // 登录页
-	INDEX_URL   = "/xtgl/index_initMenu.html"      // 首页
+	MENU        = "/xtgl/index_initMenu.html"      // 首页
 	CAPTCHA     = "/zfcaptchaLogin"                // 登录滑块验证码
 	KAPTCHA     = "/kaptcha"                       // 登录图形验证码
 	PublicKey   = "/xtgl/login_getPublicKey.html"  // 登录公钥获取
@@ -17,24 +17,29 @@ const (
 	//Notifications = "/xtgl/index_cxDbsy.html" // 一些通知
 	//StudentPhoto = "/xtgl/photo_cxXszp.html" // null,4学生大头照; 2 null, 3无上传照片权限
 
-	INFO     = "/xsxxxggl/xsgrxxwh_cxXsgrxx.html" // 个人信息获取 HTML
+	InfoHtm  = "/xsxxxggl/xsgrxxwh_cxXsgrxx.html" // 个人信息获取 HTML
 	InfoJson = "/xsxxxggl/xsxxwh_cxCkDgxsxx.html"
 	//ExtraInfoURL = "/xszbbgl/xszbbgl_cxXszbbsqIndex.html?doType=details&gnmkdm=N106005" // GET学生证补办，post
-
-	SCORE = "/cjcx/cjcx_cxDgXscj.html" // 查询成绩 or 不带参数是挂科json
+	PersonalInfo = "/cjcx/cjcx_cxXsgrcj.html"      // 可以查分，查个人信息，不带参数是挂科json
+	SCORE        = "/cjcx/cjcx_cxDgXscj.html"      // 查询成绩 or 不带参数是挂科json
+	Exam         = "/kwgl/kscx_cxXsksxxIndex.html" // 考试时间表
 	//SelectedCourses = "/xsxxxggl/xsxxwh_cxXsxkxx.html"      // 已选课程 json
-	//PersonalInfo    = "/cjcx/cjcx_cxXsgrcj.html"            // 可以查分，查个人信息，不带参数是挂科json
+
 	//ClassSchedule   = "/kbdy/bjkbdy_cxBjKb.html"            // 班级课表
 	//ClassSchedule2  = "/kbdy/bjkbdy_cxBjkbdyIndex.html"     // 班级课表，它能相对不受限制的查询
 	//SchedulePolicy  = "/kbdy/bjkbdy_cxXnxqsfkz.html"        // 获取课表pdf
 	//ScheduleFile    = "/kbcx/xskbcx_cxXsShcPdf.html"        // 获取课表pdf
 	//Schedule        = "/kbcx/xskbcx_cxXsKb.html"            // 课表信息
 	//LittleSchedule  = "/kbcx/xskbcx_cxXskbSimpleIndex.html" // 选课里的小课表
-	//Academia      = "/xsxy/xsxyqk_cxJxzxjhxfyqKcxx.html" // 学生生涯 post
 
-	AcademiaIndex = "/xsxy/xsxyqk_cxXsxyqkIndex.html"                        // GPA
-	Evaluations   = "/zjjspxgl/xspxzjjs_cxXspxzjjsIndex.html?gnmkdm=N408125" // 教学评价页面
-	TeacherPhoto  = "/photo/photo_cxJzgzp2.html"                             // 教学评价教师大头照
+	AcademiaIndex = "/xsxy/xsxyqk_cxXsxyqkIndex.html" // GPA
+	GpaParamsUrl  = "/cjgl/common_cxGnzdxxList.html"
+	GpaCalcUrl    = "/cjpmtj/gpapmtj_tjGpapmtj.html"
+	GpaQueryUrl   = "/cjpmtj/gpapmtj_cxGpaxjfcxIndex.html"
+	// Academia      = "/xsxy/xsxyqk_cxJxzxjhxfyqKcxx.html" // 学生生涯 post
+
+	Evaluations  = "/zjjspxgl/xspxzjjs_cxXspxzjjsIndex.html?gnmkdm=N408125" // 教学评价页面
+	TeacherPhoto = "/photo/photo_cxJzgzp2.html"                             // 教学评价教师大头照
 )
 
 // 选课
@@ -47,7 +52,7 @@ const (
 	ChooseCourse             = "/xsxk/zzxkyzb_xkBcZyZzxkYzb.html"           // 发送选课
 	CourseSelectedList       = "/xsxk/zzxkyzb_cxZzxkYzbChoosedDisplay.html" // 查询已选课程接口
 	QuitCourse               = "/xsxk/zzxkyzb_tuikBcZzxkYzb.html"           // 退课
-	//QuitCourseCheck          = "/xsxk/zzxkyzb_xkJcInXksjZzxkYzb.html"       // 退课检查
+	CourseRegistered         = "/xsxk/zzxkyzb_xkJcInXksjZzxkYzb.html"       // 课程选课检查
 
 	//ChooseCourseCourseDetail2 = "/xsxk/zzxkyzbjk_cxJxbWithKchZzxkYzb.html" // 查询课程号对应的详细信息
 	//ChooseCourse2             = "/xsxk/zzxkyzbjk_xkBcZyZzxkYzb.html"       // 发送选课
@@ -60,6 +65,11 @@ const (
 	//CourseCategory                 = "/jxjhgl/common_cxKcJbxx.html"       // 根据课程号获取类别
 	//CHOOSE_COURSE_chooseCourse_pre = "/xtsxk/zzxkyzb_cxXkTitleMsg.html"   // 发送选课前的一个请求会返回 flag=1 没什么用
 	// xsxk/zzxkyzb_xkZyZzxkYzbZjxb.html
+
+	showDialog = "/xkgl/common_cxSbTitle.html"       // 上课时间冲突且可查看冲突 data:{"msg":msg/*,"xkxnm":$("#xkxnm").val(),"xkxqm":$("#xkxqm").val(),"jxb_ids":jxb_arr*/},
+	Conflict   = "/xkgl/common_cxCtjxbListPage.html" // 冲突教学班 data:{"xnm":$("#xkxnm").val(),"xqm":$("#xkxqm").val(),"kch_id":kch_id,"jxb_ids":do_jxb_id}
+
+	//rule = "/xkgzsz/jbxkgzsz_cxJbxkgzsz.html" // 查看选课规则
 )
 
 const (

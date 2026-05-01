@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	baseCfg "school_sdk/config"
@@ -11,13 +12,13 @@ func (a *APIClient) GetJsonInfo() UserInfo {
 	var result UserInfo
 	resp, err := a.Http.R().
 		SetTimeout(12 * time.Second).
-		SetResult(&result).
 		SetQueryParams(map[string]string{
 			"gnmkdm": "N100801",
-			"su":     a.Account,
+			"su":     a.Config.Account,
 		}).Get(baseCfg.InfoJson)
 	if err != nil {
 		fmt.Println(err)
+		return result
 	}
 	if resp.IsError() {
 		log.Println(resp.Error())
@@ -32,12 +33,18 @@ func (a *APIClient) GetJsonInfo() UserInfo {
 		a.ReLogin()
 	}
 
+	if err := json.Unmarshal(resp.Bytes(), &result); err != nil {
+		log.Println("获取个人信息失败 msg:", resp.String())
+		fmt.Println(err)
+		log.Println(err, resp.String())
+	}
+
 	a.Name = result.Xm
 	return result
 }
 
 func PrintStudentInfo2(info UserInfo) {
-	if info.Xm == "" {
+	if info.Xh == "" {
 		return
 	}
 	//fmt.Printf("姓名:%-3s 班级:%-6s 学号:%-6s 毕业学校:%s\n", info.Xm, info.BhId, info.XhId, info.Byzx)
@@ -127,33 +134,28 @@ type UserInfo struct {
 	Zzmmm string `json:"zzmmm"`  // 政治面貌
 }
 
-//func (a *APIClient) GetRawInfo() *[]byte {
-//	resp, err := a.Http.R().
-//		SetQueryParams(map[string]string{
-//			"gnmkdm": "N100801",
-//			//"layout": "default",
-//			"su": a.Account,
-//		}).Get(baseCfg.INFO)
-//	//resp, err := a.Http.R().
-//	//	SetQueryParams(map[string]string{
-//	//		"gnmkdm": "N100801",
-//	//		//"layout": "default",
-//	//		"su": a.Account,
-//	//	}).Get(baseCfg.PersonalInfo)
-//
-//	if err != nil {
-//		fmt.Println(err)
-//	}
-//	if a.LoginCheck(resp) {
-//		// Ctrl里有关掉重定向是302，不关是200
-//		//return true
-//	} else {
-//		fmt.Println(resp.Status)
-//		a.ReLogin()
-//	}
-//	info := resp.Bytes()
-//	return &info
-//}
+func (a *APIClient) GetRawInfo() []byte {
+	resp, err := a.Http.R().
+		SetQueryParams(map[string]string{
+			"gnmkdm": "N100801",
+			//"layout": "default",
+			"su": a.Config.Account,
+		}).
+		Get(baseCfg.InfoHtm)
+	//Get(baseCfg.PersonalInfo)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	if a.LoginCheck(resp) {
+		// Ctrl里有关掉重定向是302，不关是200
+		//return true
+	} else {
+		fmt.Println(resp.Status())
+		a.ReLogin()
+	}
+	return resp.Bytes()
+}
 
 //type StudentInfo struct {
 //	StudentNumber    string // 学号

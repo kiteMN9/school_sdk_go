@@ -29,14 +29,14 @@ func (a *APIClient) Logout() string {
 	if err != nil {
 		if errors.Is(err, context.DeadlineExceeded) {
 			return ""
-		} else {
-			fmt.Println(err)
 		}
+
+		fmt.Println(err)
 	}
 
 	// fmt.Println(resp.String()
 	bodyString := resp.String()
-	if utils.UserIsLogin(a.Account, bodyString) && !a.CheckLogout302(resp) {
+	if utils.UserIsLogin(a.Config.Account, bodyString) && !a.CheckLogout302(resp) {
 		fmt.Println("退出失败")
 	} else {
 		fmt.Println("退出成功")

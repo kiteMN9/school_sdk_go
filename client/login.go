@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http/cookiejar"
 	"os"
@@ -16,15 +17,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/PuerkitoBio/goquery"
-	"github.com/antchfx/htmlquery"
-
 	"school_sdk/check_code"
 	baseCfg "school_sdk/config"
 	"school_sdk/utils"
+
+	"github.com/PuerkitoBio/goquery"
 )
 
 var ExistVerify = fmt.Errorf("请先滑动图片进行验证！")
+var InputYzmErr = fmt.Errorf("验证码输入错误！")
 var IncorrectPassword = fmt.Errorf("用户名或密码不正确，请重新输入！")
 var CsrfEmpty = fmt.Errorf("CSRF is empty")
 var loginMU sync.Mutex
@@ -58,25 +59,33 @@ func (a *APIClient) ReLogin() bool {
 func (a *APIClient) Login() bool {
 	if a.enableCas2 {
 		if a.cas2Login() {
-			if a.cas2Client.Account != a.Account {
-				a.Account = a.cas2Client.Account
+			if a.cas2Client.Account != a.Config.Account {
+				a.Config.Account = a.cas2Client.Account
 			}
 			return true
 		}
 		return false
 	}
-	var LoginExtend = generateLoginExtend(a.Config.userAgent)
-	count := 0
-	for count < 15 {
+	var LoginExtend = generateLoginExtend(a.Config.UserAgent)
+
+	for count := 0; count < 15; count++ {
 		reqTime := fmt.Sprint(time.Now().UnixMilli())
-		csrfToken := a.getRawCsrfToken()
+		csrfToken, yzm, stat := a.getRawCsrfToken()
+		if stat {
+			return true
+		}
+		if yzm {
+			if a.kaptchaLogin(csrfToken, reqTime) {
+				return true
+			}
+			continue
+		}
 		if a.Config.ExistVerify {
 			// if verify_type
 			if a.getCaptchaLogin(LoginExtend, csrfToken, reqTime) {
 				return true
 			}
 			fmt.Println("重新开始登录流程")
-			count++
 			continue
 		} else {
 			var wg sync.WaitGroup
@@ -87,11 +96,19 @@ func (a *APIClient) Login() bool {
 			wg.Wait()
 
 			//csrfToken = a.getRawCsrfToken()
-			stat, err := a.postLogin(csrfToken, reqTime, encryptedResult)
+			stat, err := a.postLogin(csrfToken, reqTime, encryptedResult, "")
 			if errors.Is(err, ExistVerify) {
 				a.Config.ExistVerify = true
-				utils.UpdateConfigUserInfo(a.filename, a.Config.ExistVerify)
+				a.Config = UpdateConfigUserInfo(a.cfgFileName, a.Config.ExistVerify)
 				continue
+			}
+			if errors.Is(err, IncorrectPassword) {
+				cfg := UpdateConfigUserInfo(a.cfgFileName, a.Config.ExistVerify)
+				a.Config = cfg
+				continue
+			}
+			if errors.Is(err, CsrfEmpty) {
+				fmt.Println("未获取到CSRF")
 			}
 			return stat
 		}
@@ -120,18 +137,19 @@ func (a *APIClient) getCaptchaLogin(LoginExtend []byte, csrfToken, reqTime strin
 		}
 		wg.Wait()
 
-		stat, err := a.postLogin(csrfToken, reqTime, encryptedResult)
+		stat, err := a.postLogin(csrfToken, reqTime, encryptedResult, "")
 		if errors.Is(err, ExistVerify) {
 			if a.Config.ExistVerify {
 				log.Println("重试验证码")
 				continue
 			}
+			a.Config.ExistVerify = true
 			return false
 		}
 		if errors.Is(err, IncorrectPassword) {
-			cfg := utils.UpdateConfigUserInfo(a.filename, a.Config.ExistVerify)
-			a.Account = cfg.Account
-			a.passwd = cfg.Passwd
+			cfg := UpdateConfigUserInfo(a.cfgFileName, a.Config.ExistVerify)
+			a.Config = cfg
+			//a.passwd = cfg.Passwd
 			//wg.Add(1)
 			//a.getRsaPublicKey(ctx, &wg, &reqTime, &encryptedResult)
 			//wg.Wait()
@@ -161,7 +179,7 @@ func (a *APIClient) captchaControl(ctx context.Context, wg *sync.WaitGroup, Logi
 			log.Println("清空cookie")
 			jar, _ := cookiejar.New(nil)
 			a.Http.SetCookieJar(jar)
-			*csrfToken = a.getRawCsrfToken()
+			*csrfToken, _, _ = a.getRawCsrfToken()
 			*rtk = a.getRTK()
 			*t = fmt.Sprint(time.Now().UnixMilli())
 			captchaParams = a.getCaptchaParams(*rtk, *t)
@@ -192,22 +210,70 @@ func (a *APIClient) captchaControl(ctx context.Context, wg *sync.WaitGroup, Logi
 	return false
 }
 
-func (a *APIClient) getKaptchaImage() {
+func (a *APIClient) kaptchaLogin(csrfToken, reqTime string) bool {
+	var encryptedResult string
+	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	wg.Add(1)
+	// 将公钥获取放在这里以节省时间，并确保公钥是新鲜的
+	go a.getRsaPublicKey(ctx, &wg, &reqTime, &encryptedResult)
+	for range 3 {
+		yzm := a.getKaptchaImage()
+		if yzm == "" {
+			continue
+		}
+		wg.Wait()
+		stat, err := a.postLogin(csrfToken, reqTime, encryptedResult, yzm) // mm 似乎不用刷新
+		if errors.Is(err, InputYzmErr) {
+			fmt.Println("验证码输入错误！")
+			continue
+		}
+		if errors.Is(err, IncorrectPassword) {
+			cfg := UpdateConfigUserInfo(a.cfgFileName, a.Config.ExistVerify)
+			a.Config = cfg
+			continue
+		} else {
+			return stat
+		}
+	}
+	return false
+}
+
+func (a *APIClient) getKaptchaImage() string {
 	resp, err := a.Http.R().
 		SetQueryParam("time", fmt.Sprint(time.Now().UnixMilli())).
 		Get(baseCfg.KAPTCHA)
 	if err != nil {
 		fmt.Println(err)
-		return
+		return ""
 	}
+
+	//if err := check_code.DisplayCaptcha(resp.Bytes()); err != nil {
+	//	fmt.Println(err)
+	//	return ""
+	//}
 	check_code.SaveImgStream(resp.Bytes(), "./", "kaptcha")
+	fmt.Println("请查看 kaptcha.png")
+	input, err := utils.UserInputWithSigInt("输入验证码:")
+	if err != nil {
+		return ""
+	}
+	errF := os.Remove("./kaptcha.png")
+	if errF != nil {
+		fmt.Println(errF)
+	}
+	//fmt.Println("input:", input)
+	return input
 }
 
-func (a *APIClient) getRawCsrfToken() string {
+func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
 	// 获取CSRF令牌
 	var failCount int
 	var timeout int
 	var csrfToken string
+	var yzm bool
+	var exists bool
 	for {
 		// log.Println("csrf debug")
 		resp, err := a.Http.R().
@@ -226,17 +292,28 @@ func (a *APIClient) getRawCsrfToken() string {
 				fmt.Println("CSRF 请求超时", timeout, resp.Duration())
 				continue
 			}
-			log.Println("CSRF HTTP 请求失败:", failCount, err)
-			failCount++
+			if errors.Is(err, io.EOF) {
+				fmt.Println(err)
+				time.Sleep(3 * time.Second)
+				continue
+			} else {
+				log.Println("CSRF HTTP 请求失败:", failCount, err)
+				failCount++
+			}
 			if failCount > 1 {
 				fmt.Printf("\r%d %s", failCount, err.Error())
 			}
-			if failCount > 4 {
-				return "" // 重新开始流程
-			}
+			time.Sleep(600 * time.Millisecond)
 			continue
 		}
 		if resp.IsError() {
+			if resp.StatusCode() == 404 {
+				fmt.Println("url:", a.Http.BaseURL())
+				fmt.Println("404, url 填的有问题吧，是不是少了 /jwglxt 或者多了")
+				log.Println("404, url 填的有问题吧")
+				time.Sleep(4 * time.Second)
+				continue
+			}
 			failCount++
 			log.Println("CSRF http:", resp.Status())
 		}
@@ -244,55 +321,39 @@ func (a *APIClient) getRawCsrfToken() string {
 			fmt.Println()
 		}
 
-		// 解析 HTML 文档
-		docNode, err := htmlquery.Parse(bytes.NewReader(resp.Bytes()))
-		if err != nil {
-			log.Println("CSRF 解析 HTML 失败:", err)
-			time.Sleep(150 * time.Millisecond)
-			continue
-		}
-
-		if node := htmlquery.FindOne(docNode, `//*[@id="yzm" or @name="yzm"]]`); node != nil {
-			fmt.Println(a.Http.BaseURL())
-			if htmlquery.SelectAttr(node, "placeholder") != "" {
-				fmt.Println("不支持图形验证码")
-				fmt.Println("支持滑块验证码，无验证码")
-				a.getKaptchaImage()
-				time.Sleep(1 * time.Second)
-				os.Exit(0)
+		if resp.IsSuccess() {
+			doc, err := goquery.NewDocumentFromReader(bytes.NewReader(resp.Bytes()))
+			if err != nil {
+				log.Println("CSRF 解析 HTML 失败:", err)
+				time.Sleep(150 * time.Millisecond)
+				continue
 			}
-		}
-		//if node := htmlquery.FindOne(docNode, `//*[@id="ydType" or @name="ydType"]`); node != nil {
-		//	ydType := htmlquery.SelectAttr(node, "value")
-		//	fmt.Println(ydType)
-		//}
-		if node := htmlquery.FindOne(docNode, `//*[@id="csrftoken" or @name="csrftoken"]`); node != nil {
-			csrfToken = htmlquery.SelectAttr(node, "value")
-			//fmt.Println(csrfToken)
-			return csrfToken
+
+			if doc.Find("#yzmDiv").Text() != "" {
+				yzm = true
+			}
+
+			// 使用 CSS 选择器提取元素属性 "input#csrftoken"
+			csrfToken, exists = doc.Find("input#csrftoken").Attr("value")
+			if exists {
+				return csrfToken, yzm, false
+			}
+			if utils.UserIsLogin(a.Config.Account, resp.String()) {
+				return "nil", yzm, false
+			}
+			fmt.Println("未找到 #csrftoken 元素或其 value 属性")
+			log.Println("未找到 #csrftoken 元素或其 value 属性")
+			log.Println(resp.String())
 		}
 
-		bodyStr := resp.String()
-		if utils.UserIsLogin(a.Account, bodyStr) {
-			return ""
+		if resp.StatusCode() == 302 {
+			if strings.Contains(resp.Header().Get("Location"), baseCfg.MENU) {
+				return "", yzm, true
+			}
+			fmt.Println(resp.Header().Get("Location"))
+			return "", yzm, false
 		}
-
-		if node := htmlquery.FindOne(docNode, `//*[@role="form" or @class="form-horizontal"]`); node != nil {
-			action := htmlquery.SelectAttr(node, "action")
-			fmt.Println(action)
-			fmt.Println(a.Http.BaseURL())
-			fmt.Println("请检查url填写是否有误，是否带有 /jwglxt 注意后面留空")
-			time.Sleep(2 * time.Second)
-			continue
-		}
-
-		log.Println(bodyStr)
-		log.Println("未找到 #csrftoken 元素或其 value 属性")
-		log.Println("请检查url填写是否有误，是否带有 /jwglxt 注意后面留空")
-		fmt.Println(a.Http.BaseURL())
-		fmt.Println("请检查url填写是否有误，是否带有 /jwglxt 注意后面留空")
-		fmt.Println("baseUrl: http?://????.????.edu.cn/jwglxt/")
-		time.Sleep(2 * time.Second)
+		time.Sleep(1 * time.Second)
 		continue
 	}
 }
@@ -301,6 +362,8 @@ func (a *APIClient) getRTK() string {
 	// 获取 cookie rtk
 	for {
 		resp, err := a.Http.R().
+			//EnableDumpWithoutBody().
+			//EnableTrace().
 			SetQueryParams(map[string]string{
 				"type":       "resource",
 				"instanceId": "zfcaptchaLogin",
@@ -321,7 +384,8 @@ func (a *APIClient) getRTK() string {
 		}
 
 		if resp.StatusCode() == 404 {
-			fmt.Println("404, url 填的有问题吧")
+			fmt.Println(a.Http.BaseURL())
+			fmt.Println("404, url 填的有问题吧，是不是少了 /jwglxt")
 			log.Println("404, url 填的有问题吧")
 			time.Sleep(4 * time.Second)
 			continue
@@ -349,7 +413,7 @@ func (a *APIClient) getRTK() string {
 
 type captchaData struct {
 	Msg    string `json:"msg"`
-	T      int    `json:"t"`
+	T      int64  `json:"t"`
 	Si     string `json:"si"`
 	Imtk   string `json:"imtk"`
 	Mi     string `json:"mi"`
@@ -393,7 +457,9 @@ func (a *APIClient) getCaptchaParams(rtk, t string) captchaData {
 	}
 }
 
-func (a *APIClient) getCaptchaImage(imtk, id string, T int) ([]byte, error) {
+var noImage = fmt.Errorf("未获取到 image")
+
+func (a *APIClient) getCaptchaImage(imtk, id string, T int64) ([]byte, error) {
 	for i := 0; i < 2; i++ {
 		resp2, err := a.Http.R().
 			SetRetryCount(0).
@@ -424,12 +490,12 @@ func (a *APIClient) getCaptchaImage(imtk, id string, T int) ([]byte, error) {
 
 		if len(resp2.Bytes()) == 0 {
 			log.Println("未获取到 image")
-			return nil, fmt.Errorf("未获取到image")
+			return nil, noImage
 		}
 
 		return resp2.Bytes(), nil
 	}
-	return nil, fmt.Errorf("未获取到 image")
+	return nil, noImage
 }
 
 type rsaResponseData struct {
@@ -461,7 +527,6 @@ func (a *APIClient) getRsaPublicKey(ctx context.Context, wg *sync.WaitGroup, t *
 				fmt.Println("pubkey 获取错误:", err)
 				log.Println("pubkey HTTP 请求失败:", err)
 			}
-			time.Sleep(150 * time.Millisecond)
 			//continue
 		}
 		if resp.IsError() {
@@ -471,9 +536,10 @@ func (a *APIClient) getRsaPublicKey(ctx context.Context, wg *sync.WaitGroup, t *
 		if jsonResult.Modulus == "" || jsonResult.Exponent == "" {
 			log.Println("pubkey 获取错误:", resp.Status(), resp.String(), *t)
 			*t = fmt.Sprint(time.Now().UnixMilli())
+			time.Sleep(50 * time.Millisecond)
 			continue
 		}
-		*enResult, err = rsa.EncryptRsa(jsonResult.Modulus, jsonResult.Exponent, a.passwd)
+		*enResult, err = rsa.EncryptRsa(jsonResult.Modulus, jsonResult.Exponent, a.Config.Passwd)
 		if err != nil {
 			*t = fmt.Sprint(time.Now().UnixMilli())
 			continue
@@ -541,21 +607,24 @@ func (a *APIClient) captchaVerify(rtk string, LoginExtend []byte, x int) bool {
 	return false
 }
 
-func (a *APIClient) postLogin(csrf, t, mm string) (bool, error) {
+func (a *APIClient) postLogin(csrf, t, mm, yzm string) (bool, error) {
 	// fmt.Println("postLogin sleep 300")
 	// time.Sleep(300 * time.Second)
-	if csrf == "" || mm == "" {
+	if csrf == "nil" || mm == "" {
 		return false, CsrfEmpty
 	}
 	for range 6 {
+		formData := map[string]string{
+			"csrftoken": csrf, // 某些系统csrf就是空的
+			"yhm":       a.Config.Account,
+			"mm":        mm, // TODO:使用后是否需要刷新公钥？
+		}
+		if len(yzm) != 0 {
+			formData["yzm"] = yzm
+		}
 		resp, err := a.Http.R().
 			SetQueryParam("time", t).
-			SetFormData(map[string]string{
-				"csrftoken": csrf,
-				"yhm":       a.Account,
-				"mm":        mm,
-				//"yzm":       "",
-			}).Post(baseCfg.LoginIndex)
+			SetFormData(formData).Post(baseCfg.LoginIndex)
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				fmt.Println("postLogin 超时", resp.Duration())
@@ -572,8 +641,8 @@ func (a *APIClient) postLogin(csrf, t, mm string) (bool, error) {
 			log.Println("postLogin HTTP 错误: 状态码 ", resp.Status())
 			continue
 		}
-		// fmt.Println(resp)
-		stat, err1 := isLogin(a.Account, resp.String())
+		//log.Println(resp.String())
+		stat, err1 := isLogin(a.Config.Account, resp.String())
 		if err1 != nil {
 			// CSRF 没必要重复获取，同cookie下是一样的
 			return false, err1
@@ -615,9 +684,9 @@ func isLogin(account, html string) (bool, error) {
 		return false, nil
 	}
 
-	if strings.Contains(errMsg, "验证码") {
+	if strings.Contains(errMsg, "验证码输入错误！") {
 		log.Println(errMsg)
-		return false, nil
+		return false, InputYzmErr
 	}
 
 	// fmt.Printf("UserIsLogin(): %s\n", errMsg)
@@ -685,6 +754,11 @@ func (a *APIClient) ssoLogin() string {
 			SetHeader("Referer", "https://portal.ycit.edu.cn/main.html").
 			Get("https://jwglxt.ycit.edu.cn/sso/hnyyxyiotlogin")
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				fmt.Println(err)
+				time.Sleep(2 * time.Second)
+				continue
+			}
 			fmt.Println(err)
 			log.Println(err)
 			continue
@@ -733,7 +807,7 @@ func (a *APIClient) ssoLogin2(location string) bool {
 		}
 	}
 
-	log.Println(location2)
+	log.Println("final:", location2)
 	location2 = strings.Replace(location2, "http://", "https://", -1)
 	for range 8 {
 		resp2, err2 := a.Http.R().
@@ -746,10 +820,11 @@ func (a *APIClient) ssoLogin2(location string) bool {
 			continue
 		}
 		if resp2.StatusCode() == 302 {
+			log.Println("location:", resp2.Header().Get("Location"))
 			return true
-		} else {
-			continue
 		}
+
+		continue
 	}
 	return false
 }

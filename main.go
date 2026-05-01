@@ -4,19 +4,17 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"math/rand"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	//"net/http"
 	//_ "net/http/pprof"
 	"school_sdk/client"
 	"school_sdk/utils"
 )
 
-var version = "school_sdk_go 1.2.7"
+var version = "school_sdk_go 1.2.8"
 
 func main() {
 	var cfgFileName, modeCode string
@@ -30,8 +28,6 @@ func main() {
 	perInfo := flag.Bool("d", false, "不查个人信息")
 
 	flag.StringVar(&modeCode, "code", "", "模式代码")
-
-	campus := flag.Bool("cam", false, "校园网模式")
 
 	cas2 := flag.Bool("cas", false, "启用cas2登录方式")
 	cas2wx := flag.Bool("wx", false, "启用cas2微信登录")
@@ -62,43 +58,20 @@ func main() {
 
 	log.Println("程序启动") // 写入文件和控制台
 	startTime := time.Now()
-
-	fCfg := utils.ReadConfig(cfgFileName)
-
-	if *campus && !*cas2wx {
-		fmt.Println("当前用户:", utils.MaskString(fCfg.Account, 2, 7))
-	} else if !*cas2wx {
-		fmt.Println("当前用户:", fCfg.Account)
-	}
-	url := ""
-	if *campus {
-		list := []string{
-			//"http://10.0.4.8",
-			"http://10.0.4.9",
-			"http://10.0.4.22",
-			//"http://10.0.4.23",
-			//"http://202.119.141.5:81",
-		}
-		randomIndex := rand.Intn(len(list))
-		selected := list[randomIndex]
-		url = selected
-	} else {
-		url = fCfg.URL
-	}
-
-	cliConfig := client.NewConfig(url, fCfg.Verify, 16*time.Second, fCfg.UserAgent)
-	apiClient := client.NewAPIClient(cliConfig, fCfg.Account, fCfg.Passwd, cfgFileName, *cas2 || fCfg.CasLogin, *cas2wx, fCfg.CasPasswd)
+	fCfg := client.ReadConfig(cfgFileName)
+	apiClient := client.NewAPIClient(16*time.Second, fCfg, cfgFileName, *cas2 || fCfg.CasLogin, *cas2wx)
 	//apiClient := client.NewClientWithCookieJar(cliConfig, fCfg.Account, jar)
+	fmt.Println("当前用户:", fCfg.Account)
 
 	if apiClient.Login() {
 		diffTime := time.Since(startTime)
 		log.Println("登录总用时:", diffTime)
 	} else {
-		log.Printf("登录失败\n")
-		time.Sleep(3 * time.Second)
+		fmt.Println("登录失败")
+		time.Sleep(2 * time.Second)
 		os.Exit(0)
 	}
-	if !(*campus || *perInfo) {
+	if !(*perInfo) {
 		client.PrintStudentInfo2(apiClient.GetJsonInfo())
 	}
 

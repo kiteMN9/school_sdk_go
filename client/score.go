@@ -19,7 +19,7 @@ func (a *APIClient) getScoreRaw(year string, term int) []Score {
 			SetQueryParams(map[string]string{
 				"doType": "query",
 				"gnmkdm": "N305005",
-				"su":     a.Account,
+				"su":     a.Config.Account,
 			}).
 			SetFormData(map[string]string{
 				"xnm":                    year,
@@ -164,7 +164,7 @@ func printScore(d Score, bfcj int) bool {
 	}
 
 	// 合格
-	fmt.Printf("%s%2s%s %3s学 %s%3s%s %-6s %s%2s%s %s %s %s %s\n",
+	fmt.Printf("%s%-3s%s%3s学 %s%3s%s %-6s %s%2s%s %s %s %s %s\n",
 		BoldCyan, d.Bfzcj, Reset,
 		d.Xf,
 		GreenBgText, d.Jd, Reset,
@@ -192,7 +192,7 @@ func (a *APIClient) GetScore(year string, term int) {
 }
 
 func (a *APIClient) GetScoreWithInput() {
-	year, termInt := GetUserInputYearTerm()
+	year, termInt := GetUserInputYearTerm(GetSuggestYearTerm())
 	a.GetScore(year, termInt)
 }
 
@@ -212,8 +212,7 @@ func GetSuggestYearTerm() (string, int) {
 	return year, term
 }
 
-func GetUserInputYearTerm() (string, int) {
-	year, termI := GetSuggestYearTerm()
+func GetUserInputYearTerm(year string, termI int) (string, int) {
 	var term = fmt.Sprintf("%d", termI)
 	var line = ""
 

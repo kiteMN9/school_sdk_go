@@ -3,22 +3,19 @@ package utils
 import (
 	"errors"
 	"fmt"
-	"github.com/AlecAivazis/survey/v2"
-	"github.com/AlecAivazis/survey/v2/terminal"
 	"io"
 	"strings"
+
+	"github.com/AlecAivazis/survey/v2"
+	"github.com/AlecAivazis/survey/v2/terminal"
 )
 
 func UserInputWithSigInt(info string) (string, error) {
 	input := ""
 	prompt := &survey.Input{
-		Message: "\r" + info,
+		Message: info,
 	}
-
-	err := survey.AskOne(prompt, &input, survey.WithIcons(func(icons *survey.IconSet) {
-		icons.Question.Text = ""
-		icons.Question.Format = ""
-	}))
+	err := survey.AskOne(prompt, &input)
 
 	if err != nil {
 		// 处理所有平台的中断信号
@@ -33,9 +30,9 @@ func UserInputWithSigInt(info string) (string, error) {
 		if scanErr != nil {
 			// 处理扫描错误（包括无输入的情况）
 			if errors.Is(scanErr, io.EOF) {
-				return "", errors.New("input interrupted")
+				return "", errors.New("input interrupted or scanErr")
 			}
-			return "", scanErr
+			return "", nil
 		}
 		return strings.TrimSpace(result), nil
 	}

@@ -50,7 +50,7 @@ func baseURLLegalCheck(baseURL string) string {
 func NewBasicClient(baseURL string, timeout time.Duration) *resty.Client {
 	baseURL = baseURLLegalCheck(baseURL)
 	client := resty.New().
-		SetRedirectPolicy(resty.NoRedirectPolicy()).
+		SetRedirectPolicy(resty.RedirectNoPolicy()).
 		SetBaseURL(baseURL)
 
 	if os.Getenv("proxy") == "1" {
@@ -60,7 +60,7 @@ func NewBasicClient(baseURL string, timeout time.Duration) *resty.Client {
 		//client.SetCloseConnection(true)
 	}
 	if os.Getenv("trace") == "1" {
-		client.EnableTrace()
+		client.SetTrace(true)
 	}
 
 	//client.EnableRetryDefaultConditions()
@@ -149,7 +149,7 @@ func NewClientWithCookieJar(cfg *ConfigData, timeout time.Duration, jar *cookiej
 	client.SetHeader("user-agent", cfg.UserAgent)
 	//SetTLSFingerprintRandomized().
 	//client.SetProxyURL("http://127.0.0.1:8866")
-	client.EnableTrace()
+	client.SetTrace(true)
 
 	//client.SetLogger(&CustomLogger{})
 

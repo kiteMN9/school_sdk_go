@@ -88,12 +88,12 @@ func (c *Client) mainPage() {
 		log.Println(resp.String())
 		return
 	}
-	if resp.IsError() {
-		log.Println(resp.Error())
+	if resp.IsStatusFailure() {
+		log.Println(resp.ResultError())
 		log.Println("mainPage HTTP 状态码错误:", resp.Status())
 	}
-	if resp.Error() != nil {
-		log.Println(resp.Error(), resp.String())
+	if resp.ResultError() != nil {
+		log.Println(resp.ResultError(), resp.String())
 	}
 	if mainPage.Code == -1001 {
 		fmt.Println(mainPage.Message)
@@ -222,12 +222,12 @@ func (c *Client) netCheckIdToken() bool {
 		log.Println("netCheck:", resp.String())
 		return false
 	}
-	if resp.IsError() {
-		log.Println(resp.Error())
+	if resp.IsStatusFailure() {
+		log.Println(resp.ResultError())
 		log.Println("netCheckIdToken HTTP 状态码错误:", resp.Status())
 	}
-	if resp.Error() != nil {
-		log.Println(resp.Error(), resp.String())
+	if resp.ResultError() != nil {
+		log.Println(resp.ResultError(), resp.String())
 	}
 	if result.Code == 0 {
 		return true

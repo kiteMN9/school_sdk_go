@@ -187,7 +187,7 @@ func (a *APIClient) getCourseListPre(ctx context.Context, cfg *APIConfig, xkkz_i
 			}
 			continue
 		}
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			// 这里容易有 404 问题和
 			// 200 错误提示 系统运行异常，请稍后再试 问题
 			fmt.Println("ListPre:", resp.Status(), resp.String())
@@ -372,7 +372,7 @@ func (a *APIClient) getCourseList(ctx context.Context, cfg *APIConfig) []CourseL
 			time.Sleep(370 * time.Millisecond)
 			continue
 		}
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			log.Println(resp.Status(), resp.String())
 			time.Sleep(1 * time.Second)
 			continue
@@ -500,7 +500,7 @@ func (a *APIClient) getCourseDetail(ctx context.Context, cfg *APIConfig, kch_id 
 			continue
 		}
 
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			log.Println(resp.Status(), resp.String())
 			time.Sleep(1 * time.Second)
 			continue
@@ -594,14 +594,14 @@ func (a *APIClient) chooseCourseRaw(cfg *APIConfig, co *CustomCourseDic, ctx con
 			}
 			continue
 		}
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			log.Println("chooseCourse", resp.Status())
 			log.Println("chooseCourse 状态码:", resp.Status(), resp.String())
 			time.Sleep(1 * time.Second)
 			continue
 		}
-		if resp.Error() != nil {
-			log.Println(resp.Error(), resp.String())
+		if resp.ResultError() != nil {
+			log.Println(resp.ResultError(), resp.String())
 			continue
 		}
 		if a.LoginCheck(resp) {
@@ -640,13 +640,13 @@ func (a *APIClient) isCourseRegistered(cfg *APIConfig, co *CustomCourseDic) bool
 			}
 			continue
 		}
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			log.Println("isCourseRegistered:", resp.Status())
 			log.Println("isCourseRegistered 状态码:", resp.Status())
 			continue
 		}
-		if resp.Error() != nil {
-			log.Println(resp.Error(), resp.String())
+		if resp.ResultError() != nil {
+			log.Println(resp.ResultError(), resp.String())
 			continue
 		}
 		if a.LoginCheck(resp) {
@@ -683,13 +683,12 @@ func (a *APIClient) getHaveSelectedList(xkxnm, xkxqm string) []ChosenDic {
 			}
 			continue
 		}
-		if resp.IsError() {
-			log.Println("Choosed:", resp.Status())
+		if resp.IsStatusFailure() {
 			log.Println("getHaveChoosedList 状态码:", resp.Status())
 			continue
 		}
-		if resp.Error() != nil {
-			log.Println(resp.Error(), resp.String())
+		if resp.ResultError() != nil {
+			log.Println(resp.ResultError(), resp.String())
 			continue
 		}
 		if a.LoginCheck(resp) {
@@ -723,7 +722,7 @@ func (a *APIClient) quitCourse(cfg *APIConfig, jxb_ids, kch_id string) (bool, st
 			log.Println(err)
 			continue
 		}
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			log.Println("quitCourse", resp.Status())
 			fmt.Println("quitCourse", resp.Status())
 		}

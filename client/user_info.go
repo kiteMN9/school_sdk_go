@@ -20,12 +20,11 @@ func (a *APIClient) GetJsonInfo() UserInfo {
 		fmt.Println(err)
 		return result
 	}
-	if resp.IsError() {
-		log.Println(resp.Error())
+	if resp.IsStatusFailure() {
 		log.Println("GetJsonInfo HTTP 状态码错误:", resp.Status())
 	}
-	if resp.Error() != nil {
-		log.Println(resp.Error(), resp.String())
+	if resp.ResultError() != nil {
+		log.Println(resp.ResultError(), resp.String())
 	}
 	if a.LoginCheck(resp) {
 	} else {

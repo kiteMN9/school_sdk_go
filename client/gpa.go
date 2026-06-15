@@ -17,11 +17,11 @@ func (a *APIClient) getGPA() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	if resp.IsError() {
+	if resp.IsStatusFailure() {
 		fmt.Println(resp.Status())
 		fmt.Println(resp.Duration())
 	}
-	if resp.IsSuccess() {
+	if resp.IsStatusFailure() {
 		GPA.GPA(resp.String())
 	}
 	//log.Println(utils.RemoveEmptyLines(resp.String()))
@@ -40,11 +40,11 @@ func (a *APIClient) getGPA_Params() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	if resp.IsError() {
+	if resp.IsStatusFailure() {
 		fmt.Println(resp.Status())
 		fmt.Println(resp.Duration())
 	}
-	if resp.IsSuccess() {
+	if resp.IsStatusSuccess() {
 		log.Println(resp.String())
 	}
 	//log.Println(utils.RemoveEmptyLines(resp.String()))
@@ -60,11 +60,11 @@ func (a *APIClient) getGPA_CACL() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	if resp.IsError() {
+	if resp.IsStatusFailure() {
 		fmt.Println(resp.Status())
 		fmt.Println(resp.Duration())
 	}
-	if resp.IsSuccess() {
+	if resp.IsStatusSuccess() {
 		log.Println(resp.String())
 	}
 	//log.Println(utils.RemoveEmptyLines(resp.String()))
@@ -87,11 +87,11 @@ func (a *APIClient) getGPA_Query() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	if resp.IsError() {
+	if resp.IsStatusFailure() {
 		fmt.Println(resp.Status())
 		fmt.Println(resp.Duration())
 	}
-	if resp.IsSuccess() {
+	if resp.IsStatusSuccess() {
 		log.Println(resp.String())
 	}
 	//log.Println(utils.RemoveEmptyLines(resp.String()))

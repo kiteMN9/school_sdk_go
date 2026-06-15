@@ -38,12 +38,12 @@ func NewCas(account, password, UA string, wx bool) *Client {
 	client := resty.New()
 	client.SetBaseURL("https://cas2.ycit.edu.cn/").
 		SetHeader("user-agent", UA).
-		SetRedirectPolicy(resty.NoRedirectPolicy())
+		SetRedirectPolicy(resty.RedirectNoPolicy())
 
 	client.SetRetryCount(5)
 
 	if os.Getenv("trace") == "1" {
-		client.EnableTrace()
+		client.SetTrace(true)
 		//client.SetLogger()
 	}
 	if os.Getenv("proxy") == "1" {
@@ -56,12 +56,12 @@ func NewCas(account, password, UA string, wx bool) *Client {
 	portalHttp := resty.New().
 		SetBaseURL("https://portal.ycit.edu.cn/").
 		SetHeader("user-agent", UA).
-		SetRedirectPolicy(resty.NoRedirectPolicy())
+		SetRedirectPolicy(resty.RedirectNoPolicy())
 
 	portalHttp.SetRetryCount(5)
 
 	if os.Getenv("trace") == "1" {
-		portalHttp.EnableTrace()
+		portalHttp.SetTrace(true)
 		//client.SetLogger()
 	}
 	if os.Getenv("proxy") == "1" {

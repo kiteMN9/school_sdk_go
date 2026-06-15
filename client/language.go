@@ -17,12 +17,11 @@ func (a *APIClient) SwitchLanguage(lang string) {
 	if err != nil {
 		fmt.Println(err)
 	}
-	if resp.IsError() {
-		log.Println(resp.Error())
+	if resp.IsStatusFailure() {
 		log.Println("language HTTP 状态码错误:", resp.Status())
 	}
-	if resp.Error() != nil {
-		log.Println(resp.Error(), resp.String())
+	if resp.ResultError() != nil {
+		log.Println(resp.ResultError(), resp.String())
 	}
 	if a.LoginCheck(resp) {
 		// Ctrl里有关掉重定向是302，不关是200

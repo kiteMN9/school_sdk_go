@@ -306,7 +306,7 @@ func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
 			time.Sleep(600 * time.Millisecond)
 			continue
 		}
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			if resp.StatusCode() == 404 {
 				fmt.Println("url:", a.Http.BaseURL())
 				fmt.Println("404, url 填的有问题吧，是不是少了 /jwglxt 或者多了")
@@ -321,7 +321,7 @@ func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
 			fmt.Println()
 		}
 
-		if resp.IsSuccess() {
+		if resp.IsStatusSuccess() {
 			doc, err := goquery.NewDocumentFromReader(bytes.NewReader(resp.Bytes()))
 			if err != nil {
 				log.Println("CSRF 解析 HTML 失败:", err)
@@ -391,7 +391,7 @@ func (a *APIClient) getRTK() string {
 			continue
 		}
 
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			fmt.Println("rtk HTTP 错误: 状态码 ", resp.Status())
 			log.Println("rtk HTTP 错误: 状态码 ", resp.Status())
 			time.Sleep(275 * time.Millisecond)
@@ -443,11 +443,11 @@ func (a *APIClient) getCaptchaParams(rtk, t string) captchaData {
 			time.Sleep(150 * time.Millisecond)
 			continue
 		}
-		if resp.IsError() {
-			log.Println(resp.Error())
+		if resp.IsStatusSuccess() {
+			log.Println(resp.Status())
 		}
-		if resp.Error() != nil {
-			log.Println(resp.Error())
+		if resp.ResultError() != nil {
+			log.Println(resp.ResultError())
 		}
 		if jsonResult.Msg != "" {
 			fmt.Println(jsonResult.Msg)
@@ -484,7 +484,7 @@ func (a *APIClient) getCaptchaImage(imtk, id string, T int64) ([]byte, error) {
 		if resp2.StatusCode() == 404 { // 过期了，重试也没用
 			break
 		}
-		if resp2.IsError() {
+		if resp2.IsStatusFailure() {
 			continue
 		}
 
@@ -529,7 +529,7 @@ func (a *APIClient) getRsaPublicKey(ctx context.Context, wg *sync.WaitGroup, t *
 			}
 			//continue
 		}
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			log.Println("pubkey HTTP 错误: 状态码 ", resp.Status())
 			//continue
 		}
@@ -585,7 +585,7 @@ func (a *APIClient) captchaVerify(rtk string, LoginExtend []byte, x int) bool {
 			time.Sleep(150 * time.Millisecond)
 			continue
 		}
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			log.Println("captcha_verify HTTP 错误: 状态码 ", resp.Status())
 			fmt.Println("captcha_verify ", resp.Status())
 			if resp.StatusCode() == 404 {
@@ -637,7 +637,7 @@ func (a *APIClient) postLogin(csrf, t, mm, yzm string) (bool, error) {
 			continue
 		}
 		//log.Println()
-		if resp.IsError() {
+		if resp.IsStatusFailure() {
 			log.Println("postLogin HTTP 错误: 状态码 ", resp.Status())
 			continue
 		}

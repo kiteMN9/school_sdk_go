@@ -430,9 +430,9 @@ trace.
 			a.Http.SetBaseURL(baseUrl)
 			fmt.Println("baseUrl设置为:", baseUrl)
 		case "trace":
-			a.Http.EnableTrace()
+			a.Http.SetTrace(true)
 		case "debugLog":
-			a.Http.EnableDebug()
+			a.Http.SetDebug(true)
 			//a.Http.EnableDebugLog()
 			//a.Http.EnableDumpAll()
 			//case "devMode":

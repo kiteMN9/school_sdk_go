@@ -22,7 +22,7 @@ func NewCasWX(account, password string) *Client {
 	client.SetBaseURL("https://cas2.ycit.edu.cn/").
 		//SetUserAgent(config.ChromeUA).
 		SetHeader("user-agent", config.ChromeUA).
-		SetRedirectPolicy(resty.NoRedirectPolicy())
+		SetRedirectPolicy(resty.RedirectNoPolicy())
 	//client.SetProxyURL("http://127.0.0.1:8866")
 
 	hash := md5.Sum([]byte(account + "salt354waragthaswrg"))
@@ -33,13 +33,13 @@ func NewCasWX(account, password string) *Client {
 		SetBaseURL("https://portal.ycit.edu.cn/").
 		//SetUserAgent(config.ChromeUA).
 		SetHeader("user-agent", config.ChromeUA).
-		SetRedirectPolicy(resty.NoRedirectPolicy())
+		SetRedirectPolicy(resty.RedirectNoPolicy())
 
 	portalHttp.SetRetryCount(5)
 
 	//client.SetProxyURL("http://127.0.0.1:8866")
 	if os.Getenv("trace") == "1" {
-		portalHttp.EnableTrace()
+		portalHttp.SetTrace(true)
 		//client.SetLogger()
 	}
 	if os.Getenv("proxy") == "1" {
@@ -56,7 +56,7 @@ func NewCasWX(account, password string) *Client {
 }
 
 func (c *Client) WXLogin() bool {
-	c.http.SetRedirectPolicy(resty.NoRedirectPolicy())
+	c.http.SetRedirectPolicy(resty.RedirectNoPolicy())
 	check_code.SaveImgStream(c.getQrCode(), "./", "qrcode")
 	uuid, imgUrl, state := c.wxUUID()
 	fmt.Println("imgUrl:", imgUrl)

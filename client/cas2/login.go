@@ -1,16 +1,17 @@
 package cas2
 
-// 这部分代码写的比较烂，但是能跑起来
 import (
 	"bytes"
+	"context"
 	"crypto/md5"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net/http/cookiejar"
 	"net/url"
 	"os"
-	"school_sdk/check_code"
 	"school_sdk/client/cas2/utils"
 	"school_sdk/config"
 	"time"
@@ -40,8 +41,7 @@ func NewCas(account, password, UA string, wx bool) *Client {
 		SetHeader("user-agent", UA).
 		SetRedirectPolicy(resty.RedirectNoPolicy())
 
-	client.SetRetryCount(5)
-
+	client.SetRetryCount(0)
 	if os.Getenv("trace") == "1" {
 		client.SetTrace(true)
 		//client.SetLogger()
@@ -49,8 +49,6 @@ func NewCas(account, password, UA string, wx bool) *Client {
 	if os.Getenv("proxy") == "1" {
 		//.EnableInsecureSkipVerify()
 		client.SetProxy("http://127.0.0.1:8866")
-		tls := client.TLSClientConfig()
-		tls.InsecureSkipVerify = true
 	}
 
 	portalHttp := resty.New().
@@ -58,7 +56,7 @@ func NewCas(account, password, UA string, wx bool) *Client {
 		SetHeader("user-agent", UA).
 		SetRedirectPolicy(resty.RedirectNoPolicy())
 
-	portalHttp.SetRetryCount(5)
+	portalHttp.SetRetryCount(0)
 
 	if os.Getenv("trace") == "1" {
 		portalHttp.SetTrace(true)
@@ -66,8 +64,8 @@ func NewCas(account, password, UA string, wx bool) *Client {
 	}
 	if os.Getenv("proxy") == "1" {
 		portalHttp.SetProxy("http://127.0.0.1:8866")
-		tls := client.TLSClientConfig()
-		tls.InsecureSkipVerify = true
+		//tls := client.TLSClientConfig()
+		//tls.InsecureSkipVerify = true
 	}
 
 	hash := md5.Sum([]byte(account + "salt354waragthaswrg"))
@@ -95,18 +93,18 @@ func (c *Client) Login() bool {
 	//fmt.Println(execution)
 	encryptResult := c.getRsaPublicKey()
 
-	check_code.SaveImgStream(c.getQrCode(), "./", "qrcode")
+	//check_code.SaveImgStream(c.getQrCode(), "./", "qrcode")
 	if c.postLogin(encryptResult, execution) {
 		//c.LoggedIn = true
 		return true
-	} else {
-		//c.LoggedIn = false
-		fmt.Println("清空cookie")
-		log.Println("清空cookie")
-		jar, _ := cookiejar.New(nil)
-		c.http.SetCookieJar(jar)
-		return false
 	}
+
+	//c.LoggedIn = false
+	fmt.Println("清空cookie")
+	log.Println("清空cookie")
+	jar, _ := cookiejar.New(nil)
+	c.http.SetCookieJar(jar)
+	return false
 }
 
 func getXpathValue(docNode *html.Node, name string) string {
@@ -118,14 +116,29 @@ func (c *Client) getHtml() string {
 	for {
 		resp, err := c.http.R().
 			SetQueryParam("service", "https://portal.ycit.edu.cn/?path=https://portal.ycit.edu.cn/main.html#/").
+			SetRetryCount(1).
 			Get("/cas/login")
 		if err != nil {
-			log.Println("getHtml", err)
+			if errors.Is(err, context.DeadlineExceeded) {
+				fmt.Println("cas getHtml 请求超时", resp.Duration())
+				continue
+			}
+			if errors.Is(err, io.EOF) {
+				fmt.Println(err)
+				time.Sleep(3 * time.Second)
+				continue
+			} else {
+				log.Println("cas getHtml 请求失败:", err)
+				fmt.Println(err)
+			}
 			time.Sleep(1 * time.Second)
 			continue
 		}
-		//htmlContent := resp.String()
-		//docNode, err1 := htmlquery.Parse(strings.NewReader(htmlContent))
+		if resp.IsStatusFailure() {
+			fmt.Println(resp.Status())
+			time.Sleep(2 * time.Second)
+			continue
+		}
 		docNode, err1 := htmlquery.Parse(bytes.NewReader(resp.Bytes()))
 		//docNode, err1 := htmlquery.Parse(resp.Body)
 		if err1 != nil {
@@ -134,11 +147,11 @@ func (c *Client) getHtml() string {
 		}
 		execution := getXpathValue(docNode, "execution")
 		failN := getXpathValue(docNode, "failN")
-		log.Println("execution:", execution)
 		log.Println("failN:", failN)
 		if failN != "-1" && failN != "0" {
 			fmt.Println("failN:", failN)
 			fmt.Println("有一定的失败次数，这可能导致验证码变成必须项")
+			log.Println("有一定的失败次数，这可能导致验证码变成必须项", failN)
 			time.Sleep(2 * time.Second)
 		}
 		return execution
@@ -149,9 +162,15 @@ func (c *Client) getRsaPublicKey() string {
 	publicKeyPEM := ""
 	for {
 		resp, err := c.http.R().
+			SetRetryCount(1).
 			Get("/cas/jwt/publicKey")
 		if err != nil {
 			log.Println("getRsaPublicKey", err)
+			time.Sleep(1 * time.Second)
+			continue
+		}
+		if resp.IsStatusFailure() {
+			log.Println("getRsaPublicKey", resp.Status())
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -166,8 +185,6 @@ func (c *Client) getRsaPublicKey() string {
 			continue
 		}
 
-		//fmt.Printf("原始密码: %s\n", c.password)
-
 		// 加密得到 Base64 结果
 		base64Result, encErr := encryptor.EncryptWithBase64(c.password)
 		if encErr != nil {
@@ -176,41 +193,37 @@ func (c *Client) getRsaPublicKey() string {
 		}
 		encryptResult := "__RSA__" + base64Result
 		//fmt.Printf("结果: %s\n", encryptResult)
-		log.Println("encryptResult:", encryptResult)
+		//log.Println("encryptResult:", encryptResult)
 		return encryptResult
 	}
-	//return publicKeyPEM
 }
 
 func (c *Client) getCaptchaImage() []byte {
-	for range 3 { // set cookie
-		resp, err := c.http.R().
-			SetQueryParam("r", fmt.Sprint(time.Now().UnixMicro()/100)).
-			Get("/cas/captcha.jpg")
-		if err != nil {
-			log.Println("getCaptchaImage:", err)
-			continue
-		}
-		captchaImage := resp.Bytes()
-		return captchaImage
+	// set cookie
+	resp, err := c.http.R().
+		SetQueryParam("r", fmt.Sprint(time.Now().UnixMicro()/100)).
+		SetRetryCount(2).
+		Get("/cas/captcha.jpg")
+	if err != nil {
+		log.Println("getCaptchaImage:", err)
+		return []byte{}
 	}
-	return []byte{}
+	captchaImage := resp.Bytes()
+	return captchaImage
 }
 
 func (c *Client) getQrCode() []byte {
-	for range 3 {
-		// if not set cookie SESSION
-		resp, err := c.http.R().
-			SetQueryParam("r", fmt.Sprint(time.Now().UnixMicro()/100)).
-			Get("/cas/qr/qrcode")
-		if err != nil {
-			log.Println("getCaptchaImage:", err)
-			continue
-		}
-		captchaImage := resp.Bytes()
-		return captchaImage
+	// if not set cookie SESSION
+	resp, err := c.http.R().
+		SetQueryParam("r", fmt.Sprint(time.Now().UnixMicro()/100)).
+		SetRetryCount(2).
+		Get("/cas/qr/qrcode")
+	if err != nil {
+		log.Println("getCaptchaImage:", err)
+		return []byte{}
 	}
-	return []byte{}
+	captchaImage := resp.Bytes()
+	return captchaImage
 }
 
 func (c *Client) postLogin(encryptResult, execution string) bool {
@@ -225,17 +238,18 @@ func (c *Client) postLogin(encryptResult, execution string) bool {
 				"failN":       "0",
 				"mfaState":    "",
 				"execution":   execution,
-				"_eventId":    "submit",
+				"_eventId":    "submit", // submitPasswordlessToken
 				"geolocation": "",
 				"fpVisitorId": c.fpVisitorId,
 				"submit1":     "Login1",
 			}).Post("/cas/login")
 		if err != nil {
+			fmt.Println("postLogin error:", err)
 			log.Println("postLogin err:", err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
-		log.Println("cas2 postLogin:", resp.Status()) // 401失败 302成功
+		//log.Println("cas2 postLogin:", resp.Status()) // 401失败 302成功
 		switch resp.StatusCode() {
 		case 302:
 			location := resp.Header().Get("Location")
@@ -253,13 +267,13 @@ func (c *Client) postLogin(encryptResult, execution string) bool {
 			}
 
 			fmt.Println("cas2登录成功")
-			fmt.Println("点击下方连接可访问门户==========")
+			fmt.Println("====点击下方连接可访问门户=============")
 			fmt.Println(location)
-			fmt.Println("点击上方连接可访问门户==========")
+			fmt.Println("====点击上方连接可访问门户=============")
 
-			log.Println("点击下方连接可访问门户==========")
+			log.Println("====点击下方连接可访问门户==============")
 			log.Println(location)
-			log.Println("点击上方连接可访问门户==========")
+			log.Println("====点击上方连接可访问门户==============")
 
 			//fmt.Println("ticketJWT:", ticketJWT)
 
@@ -280,7 +294,7 @@ func (c *Client) postLogin(encryptResult, execution string) bool {
 			c.nextLoginTimeExp, c.Account = utils.ExtractExpManual(ticketJWT)
 			return true
 		case 200:
-			fmt.Println("不成功，登录实现有问题")
+			fmt.Println("不成功，登录实现有问题", resp.Status())
 			time.Sleep(time.Second * 12)
 		case 401:
 			fmt.Println("账户或密码错误？")
@@ -292,8 +306,8 @@ func (c *Client) postLogin(encryptResult, execution string) bool {
 			time.Sleep(2 * time.Second)
 			return false
 		default:
-			fmt.Println(resp.Status(), resp.String())
-			log.Println(resp.Status(), resp.String())
+			fmt.Println("cas2 postLogin:", resp.Status(), resp.String())
+			log.Println("cas2 postLogin:", resp.Status(), resp.String())
 			time.Sleep(1 * time.Second)
 			continue
 		}

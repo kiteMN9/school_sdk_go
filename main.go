@@ -14,23 +14,24 @@ import (
 	"school_sdk/utils"
 )
 
-var version = "school_sdk_go 1.2.8"
+var version = "school_sdk_go 1.2.14"
 
 func main() {
-	var cfgFileName, modeCode string
+	var cfgFileName, modeCode, route string
 
 	// 版本信息
-	verFlag := flag.Bool("V", false, "Print version information")
+	verFlag := flag.Bool("V", false, version)
 	// 绑定命令行参数到变量
-	flag.StringVar(&cfgFileName, "c", "config.json", "Specify config file path")
+	flag.StringVar(&cfgFileName, "c", "config.json", "配置文的件路径")
 	//// 也可以添加长格式别名 (可选)
 	//flag.StringVar(&cfgFileName, "config", "config.json", "Specify config file path (long format)")
 	perInfo := flag.Bool("d", false, "不查个人信息")
 
-	flag.StringVar(&modeCode, "code", "", "模式代码")
+	flag.StringVar(&modeCode, "code", "", "模式代码建议5")
 
 	cas2 := flag.Bool("cas", false, "启用cas2登录方式")
 	cas2wx := flag.Bool("wx", false, "启用cas2微信登录")
+	flag.StringVar(&route, "route", "", "教务系统route")
 
 	// 解析命令行参数
 	flag.Parse()
@@ -55,17 +56,16 @@ func main() {
 			os.Exit(0)
 		}
 	}()
-
+	//fmt.Println("交流群: ")
 	log.Println("程序启动") // 写入文件和控制台
 	startTime := time.Now()
 	fCfg := client.ReadConfig(cfgFileName)
-	apiClient := client.NewAPIClient(16*time.Second, fCfg, cfgFileName, *cas2 || fCfg.CasLogin, *cas2wx)
+	apiClient := client.NewAPIClient(16*time.Second, fCfg, cfgFileName, *cas2 || fCfg.CasLogin, *cas2wx, route)
 	//apiClient := client.NewClientWithCookieJar(cliConfig, fCfg.Account, jar)
 	fmt.Println("当前用户:", fCfg.Account)
 
 	if apiClient.Login() {
-		diffTime := time.Since(startTime)
-		log.Println("登录总用时:", diffTime)
+		log.Println("登录总用时:", time.Since(startTime))
 	} else {
 		fmt.Println("登录失败")
 		time.Sleep(2 * time.Second)

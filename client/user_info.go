@@ -12,6 +12,7 @@ func (a *APIClient) GetJsonInfo() UserInfo {
 	var result UserInfo
 	resp, err := a.Http.R().
 		SetTimeout(12 * time.Second).
+		//SetResult(&result).
 		SetQueryParams(map[string]string{
 			"gnmkdm": "N100801",
 			"su":     a.Config.Account,
@@ -21,10 +22,13 @@ func (a *APIClient) GetJsonInfo() UserInfo {
 		return result
 	}
 	if resp.IsStatusFailure() {
+		fmt.Println("GetJsonInfo:", resp.Status())
 		log.Println("GetJsonInfo HTTP 状态码错误:", resp.Status())
+		return result
 	}
 	if resp.ResultError() != nil {
 		log.Println(resp.ResultError(), resp.String())
+		return result
 	}
 	if a.LoginCheck(resp) {
 	} else {

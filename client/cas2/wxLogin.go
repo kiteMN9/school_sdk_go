@@ -17,7 +17,6 @@ import (
 )
 
 func NewCasWX(account, password string) *Client {
-	// 重复了对吧？懒得优化了反正能用
 	client := resty.New()
 	client.SetBaseURL("https://cas2.ycit.edu.cn/").
 		//SetUserAgent(config.ChromeUA).
@@ -35,7 +34,7 @@ func NewCasWX(account, password string) *Client {
 		SetHeader("user-agent", config.ChromeUA).
 		SetRedirectPolicy(resty.RedirectNoPolicy())
 
-	portalHttp.SetRetryCount(5)
+	portalHttp.SetRetryCount(0)
 
 	//client.SetProxyURL("http://127.0.0.1:8866")
 	if os.Getenv("trace") == "1" {
@@ -84,6 +83,9 @@ outerLoop:
 			SetQueryParam("federatedName", "openweixin").
 			Get("https://cas2.ycit.edu.cn/cas/federatedRedirect")
 		if err != nil {
+			fmt.Println("wxUUID:", err)
+			log.Println("wxUUID:", err)
+			time.Sleep(500 * time.Millisecond)
 			continue
 		}
 		if resp.StatusCode() != 302 {
@@ -100,6 +102,9 @@ outerLoop:
 				//	// https://cas2.ycit.edu.cn/cas/federatedCallback/openweixin?service=https%3A%2F%2Fportal.ycit.edu.cn%2F%3Fpath%3Dhttps%3A%2F%2Fportal.ycit.edu.cn%2Fmain.html%23%2F
 				Get(Location)
 			if err2 != nil {
+				fmt.Println("wxUUIDl:", err2)
+				log.Println("wxUUIDl:", err2)
+				time.Sleep(500 * time.Millisecond)
 				continue
 			}
 			if resp2.StatusCode() != 302 {
@@ -113,7 +118,7 @@ outerLoop:
 			break
 		}
 		if wxLocation == "" {
-			log.Println("location is null")
+			log.Println("wxUUID: location is null")
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -123,10 +128,9 @@ outerLoop:
 		if locationErr != nil {
 			continue
 		}
-		query := parsedUrl.Query()
-		state := query.Get("state")
+		state := parsedUrl.Query().Get("state")
 		if state == "" {
-			log.Println("state is null")
+			log.Println("wxUUID: state is null")
 			time.Sleep(1 * time.Second)
 			continue
 		}
@@ -135,6 +139,8 @@ outerLoop:
 			resp3, err3 := c.http.R().
 				Get(wxLocation)
 			if err3 != nil {
+				fmt.Println("wxUUIDw:", err3)
+				time.Sleep(1 * time.Second)
 				continue
 			}
 
@@ -157,6 +163,8 @@ func (c *Client) getWXQrCode(url string) []byte {
 		resp, err := c.http.R().
 			Get(url)
 		if err != nil {
+			fmt.Println("getWXQrCode:", err)
+			time.Sleep(1 * time.Second)
 			continue
 		}
 		qrcode := resp.Bytes()
@@ -167,12 +175,17 @@ func (c *Client) getWXQrCode(url string) []byte {
 
 func (c *Client) GetScanResultCode(uuid string) string {
 	//SetUserAgent("Mozilla/5.0 (iPhone; CPU iPhone OS 8_0 like Mac OS X) AppleWebKit/600.1.4 (KHTML, like Gecko) Mobile/12A365 MicroMessenger/5.4.1 NetType/WIFI WebView/doc")
+	defer func() {
+		_ = os.Remove("./WXQrcode.png")
+	}()
+	time.Sleep(2 * time.Second)
 	for range 15 {
 		resp, err := c.http.R().
 			SetQueryParam("uuid", uuid).
-			//SetQueryString("uuid=" + uuid + "&f=url").
 			Get("https://lp.open.weixin.qq.com/connect/l/qrconnect")
 		if err != nil {
+			fmt.Println("getScanResult:", err)
+			time.Sleep(1 * time.Second)
 			continue
 		}
 		// window.wx_errcode = 408; window.wx_code = '';
@@ -187,7 +200,7 @@ func (c *Client) GetScanResultCode(uuid string) string {
 			log.Println("wxCode:", wxCode)
 			return wxCode
 		}
-		fmt.Println("Code not found", uuid)
+		fmt.Println("Code not found:", uuid)
 	}
 	log.Println("wxCode: null; uuid:", uuid)
 	return ""
@@ -198,6 +211,7 @@ func (c *Client) WxLoginFinal(wxCode, state string) (string, bool, string) {
 	resp, err := c.http.R().
 		SetQueryParam("code", wxCode).
 		SetQueryParam("state", state).
+		SetRetryCount(2).
 		Get("https://cas2.ycit.edu.cn/cas/federation/federatedCallback/openweixin")
 	if err != nil {
 		return "", false, ""
@@ -211,6 +225,7 @@ func (c *Client) WxLoginFinal(wxCode, state string) (string, bool, string) {
 	//https://cas2.ycit.edu.cn/cas/federatedCallback/openweixin?service=https%3A%2F%2Fportal.ycit.edu.cn%2F%3Fpath%3Dhttps%3A%2F%2Fportal.ycit.edu.cn%2Fmain.html%23%2F&federatedCode=SI0aYr&state=TST-846-ClDtDL9bS4Lt0h6hm6DV2ZjBLPT8AtaT
 
 	resp2, err2 := c.http.R().
+		SetRetryCount(2).
 		Get(location)
 	if err2 != nil {
 		return "", false, ""
@@ -223,6 +238,7 @@ func (c *Client) WxLoginFinal(wxCode, state string) (string, bool, string) {
 	log.Println("location2:", location2)
 
 	resp3, err3 := c.http.R().
+		SetRetryCount(2).
 		Get(location2)
 	if err3 != nil {
 		return "", false, ""
@@ -233,6 +249,7 @@ func (c *Client) WxLoginFinal(wxCode, state string) (string, bool, string) {
 	}
 
 	resp4, err4 := c.http.R().
+		SetRetryCount(2).
 		Get("https://cas2.ycit.edu.cn/cas/login?service=https://portal.ycit.edu.cn/?path=https://portal.ycit.edu.cn/main.html#/")
 	if err4 != nil {
 		return "", false, ""

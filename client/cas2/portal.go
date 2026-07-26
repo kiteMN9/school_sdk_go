@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand/v2"
 	"net/http"
+	"strings"
 	"time"
 
 	"resty.dev/v3"
@@ -89,7 +90,6 @@ func (c *Client) mainPage() {
 		return
 	}
 	if resp.IsStatusFailure() {
-		log.Println(resp.ResultError())
 		log.Println("mainPage HTTP 状态码错误:", resp.Status())
 	}
 	if resp.ResultError() != nil {
@@ -102,7 +102,7 @@ func (c *Client) mainPage() {
 		c.Login()
 		return
 	}
-	log.Printf("mainPage:%+v\n", mainPage)
+	//log.Printf("mainPage:%+v\n", mainPage)
 	return
 }
 
@@ -113,16 +113,17 @@ func (c *Client) GetJwCookie() bool {
 	}
 	c.mainPage()
 	// https://portal.ycit.edu.cn/portal-api/v1/service/useTime/save?id=8aaa844d8804cd12018836fb81f6166d
-	fmt.Println("从已登录的门户中得到教务系统临时cookie")
+	fmt.Println("正在从 cas 登录教务系统")
 	for range 2 {
 		_, err := c.portalHttp.R().
 			SetHeader("Referer", "https://portal.ycit.edu.cn/main.html").
 			SetQueryParam("id", "8aaa844d8804cd12018836fb81f6166d"). // 讲道理这边不该写死在代码里
+			SetRetryCount(0).
 			Get("https://portal.ycit.edu.cn/portal-api/v1/service/useTime/save")
 		if err != nil {
 			fmt.Println(err)
 			log.Println(err)
-			return false
+			continue
 		}
 		return true
 		//fmt.Println(resp.Status, resp.String())
@@ -142,6 +143,7 @@ func (c *Client) GetJwCookie2(location string) string {
 	var location1 string
 	for range 3 {
 		resp1, err := c.portalHttp.R().
+			SetRetryCount(1).
 			Get(location)
 		if err != nil {
 			fmt.Println(err)
@@ -150,42 +152,20 @@ func (c *Client) GetJwCookie2(location string) string {
 			continue
 		}
 		if resp1.StatusCode() != 302 {
-			fmt.Println(resp1.Status())
+			fmt.Println("GetJwCookie2 resp1:", resp1.Status())
 			log.Println("GetJwCookie2 resp1:", resp1.Status())
+			time.Sleep(2 * time.Second)
 			continue
 		}
 		location1 = resp1.Header().Get("Location")
+		// http://jwglxt.ycit.edu.cn/sso/hnyyxyiotlogin?targetUrl={base64}aHR0cDovL2p3Z2x4dC55Y2l0LmVkdS5jbi9zc28vc3NvL2luZGV4LmpzcA==&ticket=ST-530871
 		if location1 == "" {
 			log.Println("GetJwCookie2 req location:", location)
 			continue
 		}
-		log.Println("GetJwCookie2 location1:", location1)
-		break
-	}
-	if location1 == "" {
-		log.Fatal("GetJwCookie2 location:", location)
-	}
-	for range 2 {
-		resp2, err := c.portalHttp.R().
-			Get(location1)
-		if err != nil {
-			fmt.Println(err)
-			log.Println(err)
-			time.Sleep(2 * time.Second)
-			continue
-		}
-		if resp2.StatusCode() != 302 {
-			fmt.Println(resp2.Status())
-			log.Println("GetJwCookie2 resp2:", resp2.Status())
-			continue
-		}
-		location2 := resp2.Header().Get("Location")
-		if location2 == "" {
-			log.Println("GetJwCookie2 location:", location2)
-			continue
-		}
-		log.Println("location2:", location2)
-		return location2
+		location1 = strings.Replace(location1, "http://", "https://", -1)
+		//log.Println("GetJwCookie2 location1:", location1)
+		return location1
 	}
 	return ""
 }
@@ -196,10 +176,10 @@ func (c *Client) needLogin() bool {
 		fmt.Println("Token has expired")
 		log.Println("Token has expired")
 		return true
-	} else {
-		//fmt.Println("Token is still valid")
-		return false
 	}
+
+	//fmt.Println("Token is still valid")
+	return false
 }
 
 type netCheckResp struct {
@@ -215,6 +195,7 @@ func (c *Client) netCheckIdToken() bool {
 	var result netCheckResp
 	resp, err := c.portalHttp.R().
 		SetResult(&result).
+		SetRetryCount(1).
 		Get("https://portal.ycit.edu.cn/portal-api/v2/service/networkCheck")
 	if err != nil {
 		fmt.Println(err)
@@ -223,7 +204,6 @@ func (c *Client) netCheckIdToken() bool {
 		return false
 	}
 	if resp.IsStatusFailure() {
-		log.Println(resp.ResultError())
 		log.Println("netCheckIdToken HTTP 状态码错误:", resp.Status())
 	}
 	if resp.ResultError() != nil {

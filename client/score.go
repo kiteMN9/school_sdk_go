@@ -14,7 +14,7 @@ import (
 
 func (a *APIClient) getScoreRaw(year string, term int) []Score {
 	var score ScoreRaw
-	for {
+	for range 2 {
 		resp, err := a.Http.R().
 			SetQueryParams(map[string]string{
 				"doType": "query",
@@ -25,7 +25,7 @@ func (a *APIClient) getScoreRaw(year string, term int) []Score {
 				"xnm":                    year,
 				"xqm":                    TERM[term],
 				"_search":                "false",
-				"nd":                     fmt.Sprint(time.Now().UnixMilli()),
+				"nd":                     strconv.FormatInt(time.Now().UnixMilli(), 10),
 				"queryModel.showCount":   "500", // 展示数量？
 				"queryModel.currentPage": "1",
 				"queryModel.sortName":    "",
@@ -62,13 +62,14 @@ func (a *APIClient) getScoreRaw(year string, term int) []Score {
 		if a.LoginCheck(resp) {
 			// Ctrl里有关重定向是302，不关是200
 		} else {
-			fmt.Println(resp.Status())
+			fmt.Println(resp.Status(), resp.Header().Get("Location"))
 			a.ReLogin()
 			continue
 		}
 
 		return score.Items
 	}
+	return score.Items
 }
 
 func formatPrintScoreAll(items []Score) {
@@ -203,17 +204,17 @@ func GetSuggestYearTerm() (string, int) {
 	var term int
 	switch {
 	case month >= 1 && month <= 6:
-		year = fmt.Sprintf("%d", now.Year()-1)
+		year = strconv.Itoa(now.Year() - 1)
 		term = 1
 	case month >= 7 && month <= 12:
-		year = fmt.Sprintf("%d", now.Year())
+		year = strconv.Itoa(now.Year() - 1)
 		term = 2
 	}
 	return year, term
 }
 
 func GetUserInputYearTerm(year string, termI int) (string, int) {
-	var term = fmt.Sprintf("%d", termI)
+	var term = strconv.Itoa(termI)
 	var line = ""
 
 	var termInt int

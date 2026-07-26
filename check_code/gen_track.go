@@ -2,6 +2,8 @@ package check_code
 
 import (
 	"encoding/json"
+	"fmt"
+	"log"
 	"math"
 	"math/rand"
 	"time"
@@ -9,13 +11,15 @@ import (
 
 // TrackPoint 带JSON标签的结构体定义
 type TrackPoint struct {
-	X int `json:"x"`
-	Y int `json:"y"`
-	T int `json:"t"`
+	X int   `json:"x"`
+	Y int   `json:"y"`
+	T int64 `json:"t"`
 }
 
 func GetTrack(distance int, y int) []TrackPoint {
-	if distance < 5 {
+	if distance < 70 {
+		fmt.Println("distance:", distance)
+		log.Println("distance:", distance)
 		return nil
 	}
 	start := rand.Intn(1030-950+1) + 950
@@ -27,6 +31,7 @@ func GetTrack(distance int, y int) []TrackPoint {
 	jitter := rand.Float64()
 	startTime := float64(time.Now().UnixNano()) / 1e9 // 转换为秒级时间戳
 
+	// 第一个阶段：主要移动阶段
 	for current < float64(distance+3) && t1 < 1.04 {
 		var currentVal float64
 		if math.Abs(current-float64(distance)) > 15 {
@@ -37,6 +42,7 @@ func GetTrack(distance int, y int) []TrackPoint {
 			currentVal += math.Sin(jitter+t1*2) * 2.5
 		}
 
+		// 更新当前值和y轴抖动
 		current = currentVal
 		if y1 < 5 {
 			y1 += rand.Intn(2)
@@ -44,29 +50,33 @@ func GetTrack(distance int, y int) []TrackPoint {
 			y1 += rand.Intn(2) - 1
 		}
 
+		// 添加轨迹点
 		track = append(track, TrackPoint{
 			X: start + int(current),
 			Y: y + y1,
-			T: int((startTime + t1/2.43) * 1000),
+			T: int64((startTime + t1/2.43) * 1000),
 		})
 		count++
 		t1 += 0.086
 	}
 
+	// 第二阶段：微调阶段
 	for t1 < 3.3 {
 		move := math.Sin(t1)*9 + math.Sin(t1*2)*1.4
 		current1 := current + move
 
+		// 更新y轴抖动
 		if y1 < 5 {
 			y1 += rand.Intn(2)
 		} else {
 			y1 += rand.Intn(2) - 1
 		}
 
+		// 添加轨迹点
 		track = append(track, TrackPoint{
 			X: start + int(current1),
 			Y: y + y1,
-			T: int((startTime + t1/2.43) * 1000),
+			T: int64((startTime + t1/2.43) * 1000),
 		})
 		count++
 		t1 += 0.2

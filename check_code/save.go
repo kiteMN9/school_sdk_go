@@ -44,6 +44,7 @@ func SaveImg(img image.Image, path, msg string) {
 		log.Println(err1)
 		return
 	}
+	defer outFile.Close()
 	err2 := png.Encode(outFile, img)
 	if err2 != nil {
 		return

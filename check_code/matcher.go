@@ -34,7 +34,13 @@ var (
 	isCacheReady   = false               // 缓存就绪标志
 )
 
+// FindBestMatch 公开的识别函数，会检查缓存是否就绪
 func FindBestMatch(data []byte) int {
+	img, err := decodeImage(data)
+	if err != nil {
+		fmt.Println("err:", err)
+		return 0
+	}
 	// 检查缓存是否就绪，如果没有就绪则等待
 	if !isCacheReady {
 		select {
@@ -43,12 +49,6 @@ func FindBestMatch(data []byte) int {
 			log.Println("等待预缓存超时")
 			return 0
 		}
-	}
-
-	img, err := decodeImage(data)
-	if err != nil {
-		fmt.Println("err:", err)
-		return 0
 	}
 	return getMatchedX(img)
 }
@@ -65,11 +65,11 @@ func decodeImage(data []byte) (image.Image, error) {
 
 type result struct {
 	x    int
-	diff int
+	diff int32
 }
 
 // FindBestMatchWithImages 直接接收图片对象
-func FindBestMatchWithImages(largeImg image.Image, maskPixels []pixelInfo, dx int) (int, int, error) {
+func FindBestMatchWithImages(largeImg image.Image, maskPixels []pixelInfo, dx int) (int, int32, error) {
 	// 并行计算参数
 	bounds := largeImg.Bounds()
 	maxX := bounds.Dx() - dx
@@ -99,9 +99,9 @@ func FindBestMatchWithImages(largeImg image.Image, maskPixels []pixelInfo, dx in
 		go func(start, end int) {
 			defer wg.Done()
 
-			currentDiff := 0
+			var currentDiff int32 = 0
 			bestXR := 0
-			minDiffR := math.MaxInt64
+			var minDiffR int32 = math.MaxInt32
 
 			for x := start; x <= end; x++ {
 				currentDiff = 0
@@ -110,15 +110,15 @@ func FindBestMatchWithImages(largeImg image.Image, maskPixels []pixelInfo, dx in
 					offset := largeNRGBA.PixOffset(x+p.X, p.Y)
 
 					// 计算差异
-					dr := int(largeNRGBA.Pix[offset]) - int(p.Color.R)
+					dr := int32(largeNRGBA.Pix[offset]) - int32(p.Color.R)
 					if dr < 0 {
 						dr = -dr
 					}
-					dg := int(largeNRGBA.Pix[offset+1]) - int(p.Color.G)
+					dg := int32(largeNRGBA.Pix[offset+1]) - int32(p.Color.G)
 					if dg < 0 {
 						dg = -dg
 					}
-					db := int(largeNRGBA.Pix[offset+2]) - int(p.Color.B)
+					db := int32(largeNRGBA.Pix[offset+2]) - int32(p.Color.B)
 					if db < 0 {
 						db = -db
 					}
@@ -140,7 +140,7 @@ func FindBestMatchWithImages(largeImg image.Image, maskPixels []pixelInfo, dx in
 		wg.Wait()
 		close(resultCh)
 	}()
-	minDiff := math.MaxInt64
+	var minDiff int32 = math.MaxInt32
 	bestX := 0
 
 	for res := range resultCh {
@@ -245,6 +245,7 @@ func getCachedImages() ([]cachedImage, error) {
 	return imageCache, nil
 }
 
+// PreloadCache 预加载缓存 - 应该在程序启动时调用
 func PreloadCache() {
 	cacheInitOnce.Do(func() {
 		go initImageCache()
@@ -291,13 +292,16 @@ func getMatchedX(img image.Image) int {
 		close(resultCh)
 	}()
 
-	minDiff := math.MaxInt64
+	var minDiff int32 = math.MaxInt32
 	bestX := 0
 
 	for res := range resultCh {
 		if res.diff < minDiff {
 			minDiff = res.diff
 			bestX = res.x
+		}
+		if minDiff < 75 {
+			return bestX + 70
 		}
 	}
 
@@ -314,8 +318,6 @@ func lowerWhiteGetNonTransParentPixels(img image.Image) ([]pixelInfo, int, int) 
 	// 创建新图片容器（使用NRGBA以保留透明度）
 	bounds := img.Bounds()
 	pixels := make([]pixelInfo, 0, 2680)
-
-	const passNum uint8 = 25
 
 	rgbaImg, ok := img.(*image.NRGBA)
 	if !ok {
@@ -337,10 +339,6 @@ func lowerWhiteGetNonTransParentPixels(img image.Image) ([]pixelInfo, int, int) 
 			idx := rgbaImg.PixOffset(x, y)
 			r8, g8, b8, a8 := rgbaImg.Pix[idx], rgbaImg.Pix[idx+1], rgbaImg.Pix[idx+2], rgbaImg.Pix[idx+3]
 
-			newR := r8 - passNum
-			newG := g8 - passNum
-			newB := b8 - passNum
-
 			// 判断是否为纯白色且不透明
 			if r8 == 255 && g8 == 255 && b8 == 255 && a8 == 255 {
 				continue
@@ -348,10 +346,9 @@ func lowerWhiteGetNonTransParentPixels(img image.Image) ([]pixelInfo, int, int) 
 				pixels = append(pixels, pixelInfo{
 					X:     x - bounds.Min.X, // 转换为相对坐标
 					Y:     y - bounds.Min.Y,
-					Color: color.NRGBA{R: newR, G: newG, B: newB},
+					Color: color.NRGBA{R: r8, G: g8, B: b8},
 				})
 			}
-
 		}
 	}
 

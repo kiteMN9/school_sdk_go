@@ -14,6 +14,7 @@ const (
 
 const (
 	StudentName = "/xtgl/index_cxYhxxIndex.html"
+	Kbcx        = "/kbcx/xskbcx_cxXsgrkb.html"
 	//Notifications = "/xtgl/index_cxDbsy.html" // 一些通知
 	//StudentPhoto = "/xtgl/photo_cxXszp.html" // null,4学生大头照; 2 null, 3无上传照片权限
 

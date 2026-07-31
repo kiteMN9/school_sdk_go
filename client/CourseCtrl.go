@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"math/rand"
+	"net/url"
 	"os"
 	"os/signal"
 	"school_sdk/utils"
@@ -66,11 +67,10 @@ func (a *APIClient) GetCourseCtl(modeCode string) {
 	// var tkList CustomCourseDic
 	// tkList.Jxbmc = "/**-**/"
 	sCustL := NewCustomCourseSlice()
-	cfg.wantClassList, cfg.wantTeacherList, cfg.wantTypeList = utils.ReadExcel()
+	cfg.wantClassList, cfg.wantTeacherList, cfg.wantTypeList = utils.ReadExcel(a.Config.Want)
 	cfg.startTimeStamp = readStartTimeConfig()
 	cfg.smtpConfig = utils.SMTPReadConfig()
 	cfg.modeName = "(未初始化)"
-
 	for {
 		if modeCode != "" {
 			code = modeCode
@@ -80,7 +80,7 @@ func (a *APIClient) GetCourseCtl(modeCode string) {
 		}
 		switch code {
 		case "6", "sx":
-			refreshWant(&cfg)
+			refreshWant(&cfg, a.Config.Want)
 			continue
 		case "7", "rf":
 			cfg.needInit = true
@@ -250,6 +250,10 @@ color.色彩测试
 en,zh.中英文切换
 who,info.我是谁 %s
 wakeup.输出csv课表
+save.保存index
+load_index.
+load.从教务系统获取剩余参数
+cookie.
 ********************************`+"\n", len(cfg.modeStore), cfg.smtpConfig.Enable, cfg.yl, a.Http.Timeout().Seconds(), a.Config.Account)
 		code, err = utils.UserInputWithSigInt("请输入功能代码(-1 退出其他):")
 		if err != nil {
@@ -286,6 +290,9 @@ wakeup.输出csv课表
 		case "5":
 			a.customGetSelected()
 		case "6":
+			fmt.Println(` 300ms - 300毫秒
+ 30s   - 30秒
+ 1m30s - 1分30秒`)
 			input, err := utils.UserInputWithSigInt("请输入持续时间:")
 			if err != nil {
 				continue
@@ -333,10 +340,34 @@ wakeup.输出csv课表
 			PrintStudentInfo2(a.GetJsonInfo())
 		case "wakeup":
 			a.wakeup()
+		case "wakeup-":
+			a.wakeup_()
 		case "detect":
 			a.detectKeepAliveTime()
 		case "save":
 			a.save(cfg)
+		case "load_index":
+			fmt.Println("从 zzxkyzb_cxZzxkYzbIndex.html 文件设置选课参数")
+			docNode, err := htmlquery.LoadDoc("zzxkyzb_cxZzxkYzbIndex.html")
+			if err != nil {
+				fmt.Println("大沙币:", err)
+				continue
+			}
+			parseYzbIndexHtml(cfg, docNode)
+		case "load":
+			fmt.Println("等待模式修改:", cfg.modeName)
+			a.getCourseListPre(context.Background(), cfg, cfg.xkkz_id, cfg.xszxzt, false)
+			fmt.Println("模式设置为:", cfg.modeName)
+		case "cookie":
+			fmt.Println()
+			targetURL, _ := url.Parse(a.Http.BaseURL())
+			cookies := a.Http.CookieJar().Cookies(targetURL)
+			parts := make([]string, len(cookies))
+			for i, c := range cookies {
+				parts[i] = c.Name + "=" + c.Value
+			}
+			cookieStr := strings.Join(parts, "; ")
+			fmt.Println(cookieStr)
 		case "dev":
 			a.devMode(cfg)
 		default:
@@ -350,8 +381,7 @@ func (a *APIClient) devMode(cfg *APIConfig) {
 		fmt.Printf(`
 ********************************
 1.设置代理 (%t)
-2.选课参数来源于YzbIndex.html
-3.选课参数来源于YzbDisplay.html
+2.选课参数来源于YzbDisplay.html
 4.init = %t
 5.打印cfg
 url.Set BaseURL  (%s)
@@ -383,14 +413,6 @@ trace.
 				tls.InsecureSkipVerify = true
 			}
 		case "2":
-			fmt.Println("从 zzxkyzb_cxZzxkYzbIndex.html 文件设置选课参数")
-			docNode, err := htmlquery.LoadDoc("zzxkyzb_cxZzxkYzbIndex.html")
-			if err != nil {
-				fmt.Println("大沙币:", err)
-				continue
-			}
-			parseYzbIndexHtml(cfg, docNode)
-		case "3":
 			fmt.Println("从 zzxkyzb_cxZzxkYzbDisplay.html 文件设置选课参数")
 			docNode, err := htmlquery.LoadDoc("zzxkyzb_cxZzxkYzbDisplay.html")
 			if err != nil {
@@ -399,10 +421,6 @@ trace.
 				continue
 			}
 			parseListPreHtml(cfg, docNode)
-		case "3-":
-			fmt.Println("等待模式修改:", cfg.modeName)
-			a.getCourseListPre(context.Background(), cfg, cfg.xkkz_id, cfg.xszxzt, false)
-			fmt.Println("模式设置为:", cfg.modeName)
 		case "4":
 			if cfg.needInit {
 				cfg.needInit = false
@@ -479,8 +497,6 @@ func (a *APIClient) setMode(cfg *APIConfig) {
 	} else {
 		fmt.Println("无效的选择")
 	}
-	//fmt.Println("然后就没了")
-	//time.Sleep(1 * time.Second)
 }
 
 func (a *APIClient) customGetSelected() {
@@ -491,12 +507,20 @@ func (a *APIClient) customGetSelected() {
 	printSelectedList(a.getHaveSelectedList(year, TERM[termInt]))
 }
 
-func (a *APIClient) wakeup() {
+func (a *APIClient) wakeup_() {
 	year, termInt := GetUserInputYearTerm(GetSuggestYearTerm2())
 	if termInt == 0 {
 		return
 	}
 	outputWakeupCSV(a.getHaveSelectedList(year, TERM[termInt]))
+}
+
+func (a *APIClient) wakeup() {
+	year, termInt := GetUserInputYearTerm(GetSuggestYearTerm2())
+	if termInt == 0 {
+		return
+	}
+	outputKbListCSV(a.getSelectedList(year, TERM[termInt]))
 }
 
 func show(cust *SafeCustomCourseSlice, workList []int) {
@@ -512,6 +536,7 @@ func (a *APIClient) Boom(cfg *APIConfig, cust *SafeCustomCourseSlice) {
 		fmt.Println("当前没有课程缓存，需要初始化")
 		return
 	}
+	fmt.Println("Ctrl+C 退出")
 	log.Println("BOOM!")
 	// 虽然可以进行课程爆破但是设计的太差了
 	ctx, cancel := context.WithCancel(context.Background())
@@ -619,6 +644,7 @@ func (a *APIClient) Boom(cfg *APIConfig, cust *SafeCustomCourseSlice) {
 }
 
 func (a *APIClient) JL(cfg *APIConfig, cust *SafeCustomCourseSlice, single bool) {
+	fmt.Println("Ctrl+C 退出")
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	sigCh := make(chan os.Signal, 1)
@@ -649,6 +675,7 @@ func (a *APIClient) JL(cfg *APIConfig, cust *SafeCustomCourseSlice, single bool)
 		tryCount := 0
 		var banList SafeCustomCourseSlice
 		if same {
+			fmt.Println("进入板块课选课")
 			log.Println("进入板块课选课")
 			// 板块课
 			//var runStat = true
@@ -692,7 +719,7 @@ func (a *APIClient) JL(cfg *APIConfig, cust *SafeCustomCourseSlice, single bool)
 						if needEnter {
 							fmt.Println()
 						}
-						refreshWant(cfg)
+						refreshWant(cfg, a.Config.Want)
 						continue
 					}
 					// 满足选课条件
@@ -772,6 +799,7 @@ func (a *APIClient) JL(cfg *APIConfig, cust *SafeCustomCourseSlice, single bool)
 			}
 
 		} else {
+			fmt.Println("进入通识选修课选课")
 			log.Println("进入通识选修课选课")
 			//cfg.yl = true
 			// 校级选修课等其他课
@@ -1049,9 +1077,9 @@ func (a *APIClient) XK(cfg *APIConfig, cust *SafeCustomCourseSlice) {
 //	return jxb_ids
 //}
 
-func refreshWant(cfg *APIConfig) {
+func refreshWant(cfg *APIConfig, xlsx string) {
 	log.Println("刷新愿望清单")
-	cfg.wantClassList, cfg.wantTeacherList, cfg.wantTypeList = utils.ReadExcel()
+	cfg.wantClassList, cfg.wantTeacherList, cfg.wantTypeList = utils.ReadExcel(xlsx)
 	fmt.Println("课程:", cfg.wantClassList)
 	fmt.Println("教师:", cfg.wantTeacherList)
 	fmt.Println("类型:", cfg.wantTypeList)

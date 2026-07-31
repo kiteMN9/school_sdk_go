@@ -1,6 +1,7 @@
 package cas2
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand/v2"
@@ -15,74 +16,76 @@ type mainPageResp struct {
 	Code    int    `json:"code"`
 	Message string `json:"message"`
 	Data    []struct {
-		Id                     string      `json:"id"`
-		OwnerApplication       interface{} `json:"ownerApplication"`
-		ServiceName            string      `json:"serviceName"`
-		ServicePicUrl          string      `json:"servicePicUrl"`
-		ServiceProfile         interface{} `json:"serviceProfile"`
-		Status                 interface{} `json:"status"`
-		CreateTime             time.Time   `json:"createTime"` // RFC 3339; 2023-05-20T02:27:12.501+00:00
-		UpdateTime             time.Time   `json:"updateTime"`
-		ServiceDesc            *string     `json:"serviceDesc"`
-		ServicePinYin          interface{} `json:"servicePinYin"`
-		CollectNum             int         `json:"collectNum"`
-		ServiceNo              interface{} `json:"serviceNo"`
-		ContactInformation     *string     `json:"contactInformation"`
-		ServiceSource          interface{} `json:"serviceSource"`
-		ServiceType            interface{} `json:"serviceType"`
-		ClickNum               int         `json:"clickNum"`
-		CreateUserCode         interface{} `json:"createUserCode"`
-		UpdateUserCode         interface{} `json:"updateUserCode"`
-		ServiceDepartmentCode  interface{} `json:"serviceDepartmentCode"`
-		HaveGuide              string      `json:"haveGuide"`
-		FlowId                 interface{} `json:"flowId"`
-		SortNum                float64     `json:"sortNum"`
-		PublicAccess           string      `json:"publicAccess"`
-		Recommend              interface{} `json:"recommend"`
-		RecommendMonths        interface{} `json:"recommendMonths"`
-		ServiceDepartmentName  string      `json:"serviceDepartmentName"`
-		CheckUrl               interface{} `json:"checkUrl"`
-		FormId                 interface{} `json:"formId"`
-		PrintId                interface{} `json:"printId"`
-		YyId                   interface{} `json:"yyId"`
-		ForceRecommend         *bool       `json:"forceRecommend"`
-		SourceType             interface{} `json:"sourceType"`
-		UnlineHand             interface{} `json:"unlineHand"`
-		RunTime                interface{} `json:"runTime"`
-		MaintainDepartmentCode interface{} `json:"maintainDepartmentCode"`
-		MaintainDepartmentName interface{} `json:"maintainDepartmentName"`
-		EnableEvaluation       interface{} `json:"enableEvaluation"`
-		EvaluationId           interface{} `json:"evaluationId"`
-		EvaluationObjectId     interface{} `json:"evaluationObjectId"`
-		ReleaseArea            interface{} `json:"releaseArea"`
-		ServiceUrl             string      `json:"serviceUrl"` // 重要的
-		IconUrl                interface{} `json:"iconUrl"`
-		TerminalName           interface{} `json:"terminalName"`
-		TokenAccept            interface{} `json:"tokenAccept"`
-		TechType               interface{} `json:"techType"`
-		LabelNames             []string    `json:"labelNames"`
-		Collect                string      `json:"collect"`
-		Terminals              interface{} `json:"terminals"`
-		LabelId                interface{} `json:"labelId"`
-		UseVpn                 string      `json:"useVpn"`
-		LabelIds               interface{} `json:"labelIds"`
-		ReleaseTime            string      `json:"releaseTime"`
-		NeedLocalNetWork       bool        `json:"needLocalNetWork"`
-		Rights                 interface{} `json:"rights"`
-		ServiceTerminals       interface{} `json:"serviceTerminals"`
-		CollectTime            interface{} `json:"collectTime"`
-		VisitNum               interface{} `json:"visitNum"`
-		VisitTime              interface{} `json:"visitTime"`
-		ServiceCas             interface{} `json:"serviceCas"`
+		Id string `json:"id"`
+		//OwnerApplication       interface{} `json:"ownerApplication"`
+		ServiceName   string `json:"serviceName"`
+		ServicePicUrl string `json:"servicePicUrl"`
+		//ServiceProfile         interface{} `json:"serviceProfile"`
+		//Status                 interface{} `json:"status"`
+		CreateTime  time.Time `json:"createTime"` // RFC 3339; 2023-05-20T02:27:12.501+00:00
+		UpdateTime  time.Time `json:"updateTime"`
+		ServiceDesc *string   `json:"serviceDesc"`
+		//ServicePinYin          interface{} `json:"servicePinYin"`
+		CollectNum int `json:"collectNum"`
+		//ServiceNo              interface{} `json:"serviceNo"`
+		ContactInformation *string `json:"contactInformation"`
+		//ServiceSource          interface{} `json:"serviceSource"`
+		//ServiceType            interface{} `json:"serviceType"`
+		ClickNum int `json:"clickNum"`
+		//CreateUserCode         interface{} `json:"createUserCode"`
+		//UpdateUserCode         interface{} `json:"updateUserCode"`
+		//ServiceDepartmentCode  interface{} `json:"serviceDepartmentCode"`
+		HaveGuide string `json:"haveGuide"`
+		//FlowId                 interface{} `json:"flowId"`
+		SortNum      float64 `json:"sortNum"`
+		PublicAccess string  `json:"publicAccess"`
+		//Recommend              interface{} `json:"recommend"`
+		//RecommendMonths        interface{} `json:"recommendMonths"`
+		ServiceDepartmentName string `json:"serviceDepartmentName"`
+		//CheckUrl               interface{} `json:"checkUrl"`
+		//FormId                 interface{} `json:"formId"`
+		//PrintId                interface{} `json:"printId"`
+		//YyId                   interface{} `json:"yyId"`
+		ForceRecommend *bool `json:"forceRecommend"`
+		//SourceType             interface{} `json:"sourceType"`
+		//UnlineHand             interface{} `json:"unlineHand"`
+		//RunTime                interface{} `json:"runTime"`
+		//MaintainDepartmentCode interface{} `json:"maintainDepartmentCode"`
+		//MaintainDepartmentName interface{} `json:"maintainDepartmentName"`
+		//EnableEvaluation       interface{} `json:"enableEvaluation"`
+		//EvaluationId           interface{} `json:"evaluationId"`
+		//EvaluationObjectId     interface{} `json:"evaluationObjectId"`
+		//ReleaseArea            interface{} `json:"releaseArea"`
+		ServiceUrl string `json:"serviceUrl"` // 重要的
+		//IconUrl                interface{} `json:"iconUrl"`
+		//TerminalName           interface{} `json:"terminalName"`
+		//TokenAccept            interface{} `json:"tokenAccept"`
+		//TechType               interface{} `json:"techType"`
+		LabelNames []string `json:"labelNames"`
+		Collect    string   `json:"collect"`
+		//Terminals              interface{} `json:"terminals"`
+		//LabelId                interface{} `json:"labelId"`
+		UseVpn string `json:"useVpn"`
+		//LabelIds               interface{} `json:"labelIds"`
+		ReleaseTime      string `json:"releaseTime"`
+		NeedLocalNetWork bool   `json:"needLocalNetWork"`
+		//Rights                 interface{} `json:"rights"`
+		//ServiceTerminals       interface{} `json:"serviceTerminals"`
+		//CollectTime            interface{} `json:"collectTime"`
+		//VisitNum               interface{} `json:"visitNum"`
+		//VisitTime              interface{} `json:"visitTime"`
+		//ServiceCas             interface{} `json:"serviceCas"`
 	} `json:"data"`
 }
 
 func (c *Client) mainPage() {
 	var mainPage mainPageResp
 	resp, err := c.portalHttp.R().
-		SetResult(&mainPage).
+		//SetResult(&mainPage).
 		SetQueryParam("random_number", fmt.Sprint(rand.IntN(900)+100)).
 		SetHeader("referer", "https://portal.ycit.edu.cn/main.html").
+		SetRetryCount(1).
+		AddRetryConditions(resty.RetryConditionStatus5XX).
 		Get("https://portal.ycit.edu.cn/portal-api/v2/service/showAll?type=4&recommend=false&showPublic=false")
 	if err != nil {
 		log.Println(err)
@@ -94,6 +97,11 @@ func (c *Client) mainPage() {
 	}
 	if resp.ResultError() != nil {
 		log.Println(resp.ResultError(), resp.String())
+	}
+	if err := json.Unmarshal(resp.Bytes(), &mainPage); err != nil {
+		fmt.Println(err)
+		log.Println(err, resp.String())
+		return
 	}
 	if mainPage.Code == -1001 {
 		fmt.Println(mainPage.Message)
@@ -113,6 +121,7 @@ func (c *Client) GetJwCookie() bool {
 	}
 	c.mainPage()
 	// https://portal.ycit.edu.cn/portal-api/v1/service/useTime/save?id=8aaa844d8804cd12018836fb81f6166d
+	//fmt.Println("从已登录的门户中得到教务系统临时cookie")
 	fmt.Println("正在从 cas 登录教务系统")
 	for range 2 {
 		_, err := c.portalHttp.R().
@@ -142,8 +151,9 @@ func (c *Client) GetJwCookie2(location string) string {
 	}
 	var location1 string
 	for range 3 {
-		resp1, err := c.portalHttp.R().
+		resp, err := c.portalHttp.R().
 			SetRetryCount(1).
+			AddRetryConditions(resty.RetryConditionStatus5XX).
 			Get(location)
 		if err != nil {
 			fmt.Println(err)
@@ -151,14 +161,18 @@ func (c *Client) GetJwCookie2(location string) string {
 			time.Sleep(2 * time.Second)
 			continue
 		}
-		if resp1.StatusCode() != 302 {
-			fmt.Println("GetJwCookie2 resp1:", resp1.Status())
-			log.Println("GetJwCookie2 resp1:", resp1.Status())
+		if resp.StatusCode() == 301 {
+			location = resp.Header().Get("Location")
+			continue
+		}
+		if resp.StatusCode() != 302 {
+			fmt.Println("GetJwCookie2 resp:", resp.Status())
+			log.Println("GetJwCookie2 resp:", resp.Status())
 			time.Sleep(2 * time.Second)
 			continue
 		}
-		location1 = resp1.Header().Get("Location")
-		// http://jwglxt.ycit.edu.cn/sso/hnyyxyiotlogin?targetUrl={base64}aHR0cDovL2p3Z2x4dC55Y2l0LmVkdS5jbi9zc28vc3NvL2luZGV4LmpzcA==&ticket=ST-530871
+		location1 = resp.Header().Get("Location")
+		// http://jwglxt.ycit.edu.cn/sso/hnyyxyiotlogin?targetUrl={base64}aHR0cDovL2p3Z2x4dC55Y2l0LmVkdS5jbi9zc28vc3NvL2luZGV4LmpzcA==&ticket=ST-530871-d09W4wk-aPVapwrtjRzQgqzKFbAcas-server-webapp-c55b596c4-wpgsq
 		if location1 == "" {
 			log.Println("GetJwCookie2 req location:", location)
 			continue
@@ -194,8 +208,9 @@ func (c *Client) netCheckIdToken() bool {
 	}
 	var result netCheckResp
 	resp, err := c.portalHttp.R().
-		SetResult(&result).
+		//SetResult(&result).
 		SetRetryCount(1).
+		AddRetryConditions(resty.RetryConditionStatus5XX).
 		Get("https://portal.ycit.edu.cn/portal-api/v2/service/networkCheck")
 	if err != nil {
 		fmt.Println(err)
@@ -206,8 +221,10 @@ func (c *Client) netCheckIdToken() bool {
 	if resp.IsStatusFailure() {
 		log.Println("netCheckIdToken HTTP 状态码错误:", resp.Status())
 	}
-	if resp.ResultError() != nil {
-		log.Println(resp.ResultError(), resp.String())
+	if err := json.Unmarshal(resp.Bytes(), &result); err != nil {
+		fmt.Println(err)
+		log.Println(err, resp.String())
+		return false
 	}
 	if result.Code == 0 {
 		return true

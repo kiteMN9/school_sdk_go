@@ -1,0 +1,40 @@
+name: Release Build
+
+on:
+  push:
+    tags: [ "v*" ]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: "构建应用"
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v6
+        with:
+          go-version: "stable"
+          cache: true
+          cache-dependency-path: go.sum
+
+      - name: Build
+        run: go build -v -o school_sdk.exe .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: school_sdk.exe
+
+      - name: Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: school_sdk.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

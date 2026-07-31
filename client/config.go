@@ -9,48 +9,31 @@ import (
 	"os"
 	cfg "school_sdk/config"
 	"school_sdk/utils"
-	"time"
+
+	"github.com/LiZhiqiang0/go_deep_copy"
 
 	"github.com/AlecAivazis/survey/v2/terminal"
 )
 
-type Config struct {
-	baseURL     string
-	timeout     time.Duration
-	ExistVerify bool
-	//Verify      string
-	userAgent string
-}
-
-func NewConfig(baseURL string, existVerify bool, timeout time.Duration, userAgent string) *Config {
-	if !cfg.CheckUALegal(userAgent) {
-		userAgent = cfg.EdgeUA
-	}
-	return &Config{
-		baseURL:     baseURL,
-		timeout:     timeout,
-		ExistVerify: existVerify,
-		userAgent:   userAgent,
-	}
-}
-
 type ConfigData struct {
+	filename  string
 	BaseURL   string `json:"url"`
 	Account   string `json:"account"`
 	Passwd    string `json:"password"`
 	CasPasswd string `json:"casPasswd"`
 	UserAgent string `json:"ua"`
+	Want      string `json:"want"`
 	//Verify    string `json:"verify"`
 	ExistVerify bool `json:"verify" default:"true"`
 	CasLogin    bool `json:"casLogin" default:"false"`
 }
 
-func SetConfig(filename string, configData ConfigData) {
-	dataByte, err := json.MarshalIndent(configData, "", "  ") // 无前缀，两个空格缩进
+func (c *ConfigData) WriteConfig() {
+	dataByte, err := json.MarshalIndent(c, "", "  ") // 无前缀，两个空格缩进
 	if err != nil {
 		panic(fmt.Sprintf("JSON序列化失败: %v", err))
 	}
-	err1 := os.WriteFile(filename, dataByte, 0644)
+	err1 := os.WriteFile(c.filename, dataByte, 0644)
 	if err1 != nil {
 		panic(err1)
 	}
@@ -64,11 +47,14 @@ func ReadConfig(filename string) *ConfigData {
 			Passwd:      "password",
 			CasPasswd:   "cas2password",
 			UserAgent:   cfg.FireFoxUA,
+			Want:        "want.xlsx",
 			ExistVerify: true,
 			CasLogin:    false,
+			filename:    filename,
 		}
-		SetConfig(filename, initialData)
-		return SetConfigUserInfo(filename, &initialData)
+		initialData.WriteConfig()
+		initialData.SetConfigUserInfo(nil)
+		return &initialData
 	}
 	// 读取文件内容
 	byteValue, err := os.ReadFile(filename)
@@ -86,14 +72,21 @@ func ReadConfig(filename string) *ConfigData {
 		log.Fatalln("json配置解析失败", err)
 		return nil
 	}
+	config.filename = filename
 	return &config
 }
-func SetConfigUserInfo(filename string, config *ConfigData) *ConfigData {
+
+func (c *ConfigData) SetConfigUserInfo(config *ConfigData) {
 	var Account, Passwd string
 	var err error
+	if config == nil {
+		config = &ConfigData{}
+		if err := go_deep_copy.DeepCopy(c, config); err != nil {
+			panic(err)
+		}
+	}
 	fmt.Println("当前用户:", config.Account)
 	for {
-
 		Account, err = utils.UserInputWithSigInt("  账号:")
 		if err == io.EOF || errors.Is(err, terminal.InterruptErr) {
 			os.Exit(0)
@@ -117,7 +110,6 @@ func SetConfigUserInfo(filename string, config *ConfigData) *ConfigData {
 		if err == io.EOF || errors.Is(err, terminal.InterruptErr) {
 			os.Exit(0)
 		}
-		return nil
 	}
 
 	if Passwd == "password" {
@@ -127,19 +119,13 @@ func SetConfigUserInfo(filename string, config *ConfigData) *ConfigData {
 		fmt.Printf("设置密码:(%s)\n", Passwd)
 	}
 
-	config.Account = Account
-	config.Passwd = Passwd
+	c.Account = Account
+	c.Passwd = Passwd
 
-	SetConfig(filename, *config)
-	return config
+	c.WriteConfig()
 }
 
-func UpdateConfigUserInfo(filename string, verify bool) *ConfigData {
-	config := ReadConfig(filename)
-	config.ExistVerify = verify
-	info := SetConfigUserInfo(filename, config)
-	if info == nil {
-		return config
-	}
-	return info
+func (c *ConfigData) UpdateConfigUserInfo(verify bool) {
+	c.ExistVerify = verify
+	c.SetConfigUserInfo(nil)
 }

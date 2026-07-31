@@ -59,7 +59,7 @@ func (a *APIClient) ReLogin() bool {
 
 func (a *APIClient) Login() bool {
 	if a.enableCas2 {
-		if a.cas2Login() {
+		if a.cas2LoginCtl() {
 			if a.cas2Client.Account != a.Config.Account {
 				a.Config.Account = a.cas2Client.Account
 			}
@@ -99,13 +99,11 @@ func (a *APIClient) Login() bool {
 			//csrfToken = a.getRawCsrfToken()
 			stat, err := a.postLogin(csrfToken, reqTime, encryptedResult, "")
 			if errors.Is(err, ExistVerify) {
-				a.Config.ExistVerify = true
-				a.Config = UpdateConfigUserInfo(a.cfgFileName, a.Config.ExistVerify)
+				a.Config.UpdateConfigUserInfo(true)
 				continue
 			}
 			if errors.Is(err, IncorrectPassword) {
-				cfg := UpdateConfigUserInfo(a.cfgFileName, a.Config.ExistVerify)
-				a.Config = cfg
+				a.Config.SetConfigUserInfo(nil)
 				continue
 			}
 			if errors.Is(err, CsrfNotExist) {
@@ -148,8 +146,7 @@ func (a *APIClient) getCaptchaLogin(LoginExtend []byte, csrfToken, reqTime strin
 			return false
 		}
 		if errors.Is(err, IncorrectPassword) {
-			cfg := UpdateConfigUserInfo(a.cfgFileName, a.Config.ExistVerify)
-			a.Config = cfg
+			a.Config.SetConfigUserInfo(nil)
 			//a.passwd = cfg.Passwd
 			//wg.Add(1)
 			//a.getRsaPublicKey(ctx, &wg, &reqTime, &encryptedResult)
@@ -231,8 +228,7 @@ func (a *APIClient) kaptchaLogin(csrfToken, reqTime string) bool {
 			continue
 		}
 		if errors.Is(err, IncorrectPassword) {
-			cfg := UpdateConfigUserInfo(a.cfgFileName, a.Config.ExistVerify)
-			a.Config = cfg
+			a.Config.SetConfigUserInfo(nil)
 			continue
 		} else {
 			return stat
@@ -363,8 +359,6 @@ func (a *APIClient) getRTK() string {
 	// 获取 cookie rtk
 	for {
 		resp, err := a.Http.R().
-			//EnableDumpWithoutBody().
-			//EnableTrace().
 			SetQueryParams(map[string]string{
 				"type":       "resource",
 				"instanceId": "zfcaptchaLogin",
@@ -386,8 +380,9 @@ func (a *APIClient) getRTK() string {
 
 		if resp.StatusCode() == 404 {
 			fmt.Println(a.Http.BaseURL())
-			fmt.Println("404, url 填的有问题吧，是不是少了 /jwglxt")
-			log.Println("404, url 填的有问题吧")
+			fmt.Println("404, url 填的有问题，是不是少了 /jwglxt")
+			fmt.Println("请填写baseURL，后面的部分如:" + baseCfg.LoginIndex + " 是不必要的")
+			log.Println("404, url 填的有问题")
 			time.Sleep(4 * time.Second)
 			continue
 		}
@@ -426,7 +421,7 @@ func (a *APIClient) getCaptchaParams(rtk, t string) captchaData {
 	var jsonResult captchaData
 	for {
 		resp, err := a.Http.R().
-			SetResult(&jsonResult).
+			//SetResult(&jsonResult).
 			SetQueryParams(map[string]string{
 				"type":       "refresh",
 				"rtk":        rtk,
@@ -450,6 +445,12 @@ func (a *APIClient) getCaptchaParams(rtk, t string) captchaData {
 		if resp.ResultError() != nil {
 			log.Println(resp.ResultError())
 		}
+		if err := json.Unmarshal(resp.Bytes(), &jsonResult); err != nil {
+			fmt.Println(err)
+			log.Println(err, resp.String())
+			time.Sleep(150 * time.Millisecond)
+			continue
+		}
 		if jsonResult.Msg != "" {
 			fmt.Println(jsonResult.Msg)
 		}
@@ -461,42 +462,39 @@ func (a *APIClient) getCaptchaParams(rtk, t string) captchaData {
 var noImage = fmt.Errorf("未获取到 image")
 
 func (a *APIClient) getCaptchaImage(imtk, id string, T int64) ([]byte, error) {
-	for i := 0; i < 2; i++ {
-		resp2, err := a.Http.R().
-			SetRetryCount(0).
-			SetTimeout(76*time.Second). // 不能睡到79秒 (76-78)
-			SetHeader("Accept", "image/apng,image/*,*/*").
-			SetQueryParams(map[string]string{
-				"type":       "image",
-				"id":         id,
-				"imtk":       imtk,
-				"t":          strconv.FormatInt(T, 10),
-				"instanceId": "zfcaptchaLogin",
-			}).Get(baseCfg.CAPTCHA)
-		if err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
-				return nil, err
-			}
-			fmt.Println("get image http error")
-			log.Println(err)
-			time.Sleep(150 * time.Millisecond)
-			continue
+	resp, err := a.Http.R().
+		SetRetryCount(1).
+		SetTimeout(31*time.Second). // 不能睡到79秒 (76-78)
+		SetHeader("Accept", "image/*,*/*").
+		SetQueryParams(map[string]string{
+			"type":       "image",
+			"id":         id,
+			"imtk":       imtk,
+			"t":          strconv.FormatInt(T, 10),
+			"instanceId": "zfcaptchaLogin",
+		}).Get(baseCfg.CAPTCHA)
+	if err != nil {
+		if errors.Is(err, context.DeadlineExceeded) {
+			return nil, err
 		}
-		if resp2.StatusCode() == 404 { // 过期了，重试也没用
-			break
-		}
-		if resp2.IsStatusFailure() {
-			continue
-		}
-
-		if len(resp2.Bytes()) == 0 {
-			log.Println("未获取到 image")
-			return nil, noImage
-		}
-
-		return resp2.Bytes(), nil
+		fmt.Println("get image http error")
+		log.Println(err)
+		time.Sleep(150 * time.Millisecond)
+		return nil, noImage
 	}
-	return nil, noImage
+	if resp.StatusCode() == 404 { // 过期了，重试也没用
+		return nil, noImage
+	}
+	if resp.IsStatusFailure() {
+		return nil, noImage
+	}
+
+	if len(resp.Bytes()) == 0 {
+		log.Println("未获取到 image")
+		return nil, noImage
+	}
+
+	return resp.Bytes(), nil
 }
 
 type rsaResponseData struct {
@@ -513,7 +511,7 @@ func (a *APIClient) getRsaPublicKey(ctx context.Context, wg *sync.WaitGroup, t *
 		resp, err := a.Http.R().
 			SetContext(ctx).
 			SetHeader("Accept", "application/json, */*").
-			SetResult(&jsonResult).
+			//SetResult(&jsonResult).
 			SetQueryParams(map[string]string{
 				"time": strconv.FormatInt(time.Now().UnixMilli(), 10),
 				"_":    *t,
@@ -534,6 +532,10 @@ func (a *APIClient) getRsaPublicKey(ctx context.Context, wg *sync.WaitGroup, t *
 		if resp.IsStatusFailure() {
 			log.Println("pubkey HTTP 错误: 状态码 ", resp.Status())
 			//continue
+		}
+		if err := json.Unmarshal(resp.Bytes(), &jsonResult); err != nil {
+			fmt.Println(err)
+			log.Println(err, resp.String())
 		}
 		if jsonResult.Modulus == "" || jsonResult.Exponent == "" {
 			log.Println("pubkey 获取错误:", resp.Status(), resp.String(), *t)
@@ -572,7 +574,7 @@ func (a *APIClient) captchaVerify(rtk string, LoginExtend []byte, x int) bool {
 			"extend":     base64.StdEncoding.EncodeToString(LoginExtend),
 		}
 		resp, err := a.Http.R().
-			SetResult(&result).
+			//SetResult(&result).
 			SetFormData(formData). // 这里不支持json
 			Post(baseCfg.CAPTCHA)
 
@@ -599,6 +601,11 @@ func (a *APIClient) captchaVerify(rtk string, LoginExtend []byte, x int) bool {
 		}
 		// fmt.Println(resp)
 		// {"msg":"","vs":"verified","status":"success"}
+		if err := json.Unmarshal(resp.Bytes(), &result); err != nil {
+			fmt.Println(err)
+			log.Println(err, resp.String())
+			continue
+		}
 
 		if result.VS == "verified" && result.Status == "success" {
 			return true
@@ -730,7 +737,7 @@ func generateLoginExtend(UserAgent string) []byte {
 	return jsonBytes
 }
 
-func (a *APIClient) cas2Login() bool {
+func (a *APIClient) cas2LoginCtl() bool {
 	log.Println("cas2Login=======")
 	if !a.cas2Client.Login() {
 		return false
@@ -787,14 +794,19 @@ func (a *APIClient) ssoTicketLogin(location string) bool {
 	var location2 string
 	for range 8 {
 		resp, err := a.Http.R().
-			Get(location) // https://jwglxt.ycit.edu.cn/sso/hnyyxyiotlogin?targetUrl={base64}aHR0cDovL2p3Z2x4dC55Y2l0LmVkdS5jbi9zc28vc3NvL2luZGV4LmpzcA==&ticket=ST-529025-
+			SetRetryCount(1).
+			Get(location) // https://jwglxt.ycit.edu.cn/sso/hnyyxyiotlogin?targetUrl={base64}aHR0cDovL2p3Z2x4dC55Y2l0LmVkdS5jbi9zc28vc3NvL2luZGV4LmpzcA==&ticket=ST-529025-5R1TqFz
 		if err != nil {
 			fmt.Println(err)
 			log.Println(err)
 			time.Sleep(2 * time.Second)
 			continue
 		}
-		if resp.StatusCode() != 302 && resp.StatusCode() != 301 {
+		if resp.StatusCode() == 301 {
+			location = resp.Header().Get("Location")
+			continue
+		}
+		if resp.StatusCode() != 302 {
 			fmt.Println(resp.Status())
 			log.Println("resp2:", resp.Status(), resp.Header(), resp.String())
 			time.Sleep(2 * time.Second)
@@ -825,7 +837,11 @@ func (a *APIClient) ssoTicketLogin(location string) bool {
 			time.Sleep(1 * time.Second)
 			continue
 		}
-		if resp.StatusCode() != 302 && resp.StatusCode() != 301 {
+		if resp.StatusCode() == 301 {
+			location2 = resp.Header().Get("Location")
+			continue
+		}
+		if resp.StatusCode() != 302 {
 			fmt.Println("ssoTicketLogin:", resp.Status())
 			log.Println("ssoTicketLogin:", resp.Status())
 			time.Sleep(2 * time.Second)

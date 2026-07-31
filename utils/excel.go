@@ -8,7 +8,7 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
-func ReadExcel() ([]string, []string, []string) {
+func ReadExcel(filename string) ([]string, []string, []string) {
 	// var class_list []string
 	// var teacher_list []string
 	// var type_list []string
@@ -16,10 +16,10 @@ func ReadExcel() ([]string, []string, []string) {
 	var f *excelize.File
 	var err error
 	for {
-		f, err = excelize.OpenFile("want.xlsx")
+		f, err = excelize.OpenFile(filename)
 		if err != nil {
 			// fmt.Println("打开文件失败:", err)
-			writeExcel()
+			writeExcel(filename)
 			continue
 		}
 		err := f.Close()
@@ -28,16 +28,16 @@ func ReadExcel() ([]string, []string, []string) {
 		}
 		break
 	}
-	return *readExcel(f, "class"), *readExcel(f, "teacher"), *readExcel(f, "type")
+	return readExcel(f, "class"), readExcel(f, "teacher"), readExcel(f, "type")
 }
 
-func readExcel(f *excelize.File, sheetName string) *[]string {
+func readExcel(f *excelize.File, sheetName string) []string {
 	var dataList []string
 	// 获取第一个工作表的名称
 	sheetMap := f.GetSheetMap()
 	if len(sheetMap) == 0 {
 		fmt.Println("Excel文件中没有工作表")
-		return &dataList
+		return dataList
 	}
 	// firstSheetIndex := 1 // 工作表索引从1开始
 	// sheetName := sheetMap[firstSheetIndex]
@@ -46,7 +46,7 @@ func readExcel(f *excelize.File, sheetName string) *[]string {
 	rows, err := f.GetRows(sheetName)
 	if err != nil {
 		log.Println("读取行数据失败:", err)
-		return &dataList
+		return dataList
 	}
 
 	// 遍历行，跳过首行并提取第一列
@@ -66,10 +66,10 @@ func readExcel(f *excelize.File, sheetName string) *[]string {
 		}
 	}
 	// fmt.Println(data_list)
-	return &dataList
+	return dataList
 }
 
-func writeExcel() {
+func writeExcel(filename string) {
 	// 创建一个新的Excel文件
 	f := excelize.NewFile()
 
@@ -139,7 +139,7 @@ func writeExcel() {
 	writeExcelData(f, sheetType, headers, data)
 
 	// 保存文件
-	if err := f.SaveAs("want.xlsx"); err != nil {
+	if err := f.SaveAs(filename); err != nil {
 		fmt.Println("保存文件失败:", err)
 		return
 	}

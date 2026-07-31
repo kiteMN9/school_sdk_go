@@ -41,7 +41,8 @@ func NewCas(account, password, UA string, wx bool) *Client {
 		SetHeader("user-agent", UA).
 		SetRedirectPolicy(resty.RedirectNoPolicy())
 
-	client.SetRetryCount(0)
+	client.SetRetryCount(1).AddRetryConditions(resty.RetryConditionStatus5XX)
+
 	if os.Getenv("trace") == "1" {
 		client.SetTrace(true)
 		//client.SetLogger()
@@ -56,7 +57,7 @@ func NewCas(account, password, UA string, wx bool) *Client {
 		SetHeader("user-agent", UA).
 		SetRedirectPolicy(resty.RedirectNoPolicy())
 
-	portalHttp.SetRetryCount(0)
+	portalHttp.SetRetryCount(1).AddRetryConditions(resty.RetryConditionStatus5XX)
 
 	if os.Getenv("trace") == "1" {
 		portalHttp.SetTrace(true)
@@ -64,8 +65,8 @@ func NewCas(account, password, UA string, wx bool) *Client {
 	}
 	if os.Getenv("proxy") == "1" {
 		portalHttp.SetProxy("http://127.0.0.1:8866")
-		//tls := client.TLSClientConfig()
-		//tls.InsecureSkipVerify = true
+		tls := client.TLSClientConfig()
+		tls.InsecureSkipVerify = true
 	}
 
 	hash := md5.Sum([]byte(account + "salt354waragthaswrg"))
@@ -229,6 +230,8 @@ func (c *Client) getQrCode() []byte {
 func (c *Client) postLogin(encryptResult, execution string) bool {
 	for range 5 {
 		resp, err := c.http.R().
+			//SetRetryCount(1).
+			//SetRetryAllowNonIdempotent(true).
 			SetQueryParam("service", "https://portal.ycit.edu.cn/?path=https://portal.ycit.edu.cn/main.html#/").
 			SetFormData(map[string]string{
 				"username":    c.Account,

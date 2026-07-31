@@ -18,7 +18,6 @@ import (
 
 // APIClient 包装Resty客户端，动态应用配置
 type APIClient struct {
-	cfgFileName      string // 配置文件名称
 	Config           *ConfigData
 	Name             string
 	Http             *resty.Client
@@ -69,8 +68,9 @@ func NewBasicClient(baseURL string, timeout time.Duration) *resty.Client {
 
 	//client.EnableRetryDefaultConditions()
 	client.SetTimeout(timeout) // 整个请求的超时时间
-	client.SetRetryCount(0).
-		SetRetryWaitTime(330 * time.Millisecond). // 设置两次重试之间的基础等待时间
+	client.SetRetryCount(1).
+		AddRetryConditions(resty.RetryConditionStatus5XX).
+		SetRetryWaitTime(300 * time.Millisecond). // 设置两次重试之间的基础等待时间
 		SetRetryMaxWaitTime(3 * time.Second)      // 设置两次重试之间的最大等待时间
 
 	refer, err := JoinURL(baseURL, baseCfg.LoginIndex)
@@ -87,7 +87,7 @@ func NewBasicClient(baseURL string, timeout time.Duration) *resty.Client {
 	return client
 }
 
-func NewAPIClient(timeout time.Duration, cfg *ConfigData, cfgFileName string, isCas2, WX bool, route string) *APIClient {
+func NewAPIClient(timeout time.Duration, cfg *ConfigData, isCas2, WX bool, route string) *APIClient {
 	client := NewBasicClient(cfg.BaseURL, timeout)
 	client.SetHeader("user-agent", cfg.UserAgent)
 	//client.EnableDebugLog()
@@ -129,10 +129,9 @@ func NewAPIClient(timeout time.Duration, cfg *ConfigData, cfgFileName string, is
 	//client.SetLogger(&CustomLogger{})
 
 	apiClient := &APIClient{
-		Config:      cfg,
-		Http:        client,
-		cfgFileName: cfgFileName,
-		enableCas2:  isCas2 || WX,
+		Config:     cfg,
+		Http:       client,
+		enableCas2: isCas2 || WX,
 	}
 
 	if isCas2 || WX {
@@ -170,7 +169,6 @@ func NewClientWithCookieJar(cfg *ConfigData, timeout time.Duration, jar *cookiej
 	return &APIClient{
 		Config:           cfg,
 		Http:             client,
-		cfgFileName:      "",
 		onlyCookieMethod: true,
 	}
 }

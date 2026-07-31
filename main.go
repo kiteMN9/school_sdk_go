@@ -14,15 +14,16 @@ import (
 	"school_sdk/utils"
 )
 
-var version = "school_sdk_go 1.2.14"
+var version = "school_sdk_go 1.2.15"
 
 func main() {
-	var cfgFileName, modeCode, route string
+	var cfgFileName, wantFile, modeCode, route string
 
 	// 版本信息
 	verFlag := flag.Bool("V", false, version)
 	// 绑定命令行参数到变量
 	flag.StringVar(&cfgFileName, "c", "config.json", "配置文的件路径")
+	flag.StringVar(&wantFile, "want", "want.xlsx", "选课愿望单文件路径")
 	//// 也可以添加长格式别名 (可选)
 	//flag.StringVar(&cfgFileName, "config", "config.json", "Specify config file path (long format)")
 	perInfo := flag.Bool("d", false, "不查个人信息")
@@ -60,7 +61,8 @@ func main() {
 	log.Println("程序启动") // 写入文件和控制台
 	startTime := time.Now()
 	fCfg := client.ReadConfig(cfgFileName)
-	apiClient := client.NewAPIClient(16*time.Second, fCfg, cfgFileName, *cas2 || fCfg.CasLogin, *cas2wx, route)
+	fCfg.Want = wantFile
+	apiClient := client.NewAPIClient(16*time.Second, fCfg, *cas2 || fCfg.CasLogin, *cas2wx, route)
 	//apiClient := client.NewClientWithCookieJar(cliConfig, fCfg.Account, jar)
 	fmt.Println("当前用户:", fCfg.Account)
 

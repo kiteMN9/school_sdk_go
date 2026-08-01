@@ -21,11 +21,12 @@ type ConfigData struct {
 	Account   string `json:"account"`
 	Passwd    string `json:"password"`
 	CasPasswd string `json:"casPasswd"`
-	UserAgent string `json:"ua"`
+	Timeout   string `json:"timeout"`
 	Want      string `json:"want"`
 	//Verify    string `json:"verify"`
-	ExistVerify bool `json:"verify" default:"true"`
-	CasLogin    bool `json:"casLogin" default:"false"`
+	ExistVerify bool   `json:"verify" default:"true"`
+	CasLogin    bool   `json:"casLogin" default:"false"`
+	UserAgent   string `json:"ua"`
 }
 
 func (c *ConfigData) WriteConfig() {
@@ -47,6 +48,7 @@ func ReadConfig(filename string) *ConfigData {
 			Passwd:      "password",
 			CasPasswd:   "cas2password",
 			UserAgent:   cfg.FireFoxUA,
+			Timeout:     "16s",
 			Want:        "want.xlsx",
 			ExistVerify: true,
 			CasLogin:    false,

@@ -14,7 +14,7 @@ import (
 	"school_sdk/utils"
 )
 
-var version = "school_sdk_go 1.2.15"
+var version = "school_sdk_go 1.2.16"
 
 func main() {
 	var cfgFileName, wantFile, modeCode, route string
@@ -61,8 +61,17 @@ func main() {
 	log.Println("程序启动") // 写入文件和控制台
 	startTime := time.Now()
 	fCfg := client.ReadConfig(cfgFileName)
-	fCfg.Want = wantFile
-	apiClient := client.NewAPIClient(16*time.Second, fCfg, *cas2 || fCfg.CasLogin, *cas2wx, route)
+	if wantFile != "want.xlsx" || fCfg.Want == "" {
+		fCfg.Want = wantFile
+		fCfg.WriteConfig()
+	}
+	duration, err := time.ParseDuration(fCfg.Timeout)
+	if err != nil {
+		duration = 16 * time.Second
+		fCfg.Timeout = "16s"
+		fCfg.WriteConfig()
+	}
+	apiClient := client.NewAPIClient(duration, fCfg, *cas2 || fCfg.CasLogin, *cas2wx, route)
 	//apiClient := client.NewClientWithCookieJar(cliConfig, fCfg.Account, jar)
 	fmt.Println("当前用户:", fCfg.Account)
 

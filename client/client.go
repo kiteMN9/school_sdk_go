@@ -47,7 +47,7 @@ func baseURLLegalCheck(baseURL string) string {
 }
 
 func NewBasicClient(baseURL string, timeout time.Duration) *resty.Client {
-	baseURL = baseURLLegalCheck(baseURL)
+	baseURLLegalCheck(baseURL)
 	client := resty.New().
 		SetRedirectPolicy(resty.RedirectNoPolicy()).
 		SetBaseURL(baseURL)
@@ -62,11 +62,10 @@ func NewBasicClient(baseURL string, timeout time.Duration) *resty.Client {
 		client.SetTrace(true)
 	}
 
-	//client.AddRequestMiddleware(func(client *resty.Client, request *resty.Request) error {
-	//	return nil
-	//})
+	if timeout < 4*time.Second {
+		timeout = 4 * time.Second
+	}
 
-	//client.EnableRetryDefaultConditions()
 	client.SetTimeout(timeout) // 整个请求的超时时间
 	client.SetRetryCount(1).
 		AddRetryConditions(resty.RetryConditionStatus5XX).

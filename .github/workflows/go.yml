@@ -10,7 +10,7 @@ permissions:
 jobs:
   build:
     name: "构建应用"
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout
@@ -24,17 +24,19 @@ jobs:
           cache-dependency-path: go.sum
 
       - name: Build
-        run: go build -v -o school_sdk.exe .
+        run: |
+          mkdir dist
+          GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -trimpath -v -o dist/school_sdk_windows_amd64.exe .
+          GOOS=windows GOARCH=386 go build -ldflags="-s -w" -trimpath -v -o dist/school_sdk_windows_386.exe .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-build
-          path: school_sdk.exe
+          path:  dist/*
 
       - name: Release
         uses: softprops/action-gh-release@v3
         with:
-          files: school_sdk.exe
+          files:  dist/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

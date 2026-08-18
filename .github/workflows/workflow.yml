@@ -1,15 +1,10 @@
-name: Release Build
-
+name: workflow.yml
 on:
   push:
-    tags: [ "v*" ]
-
-permissions:
-  contents: write
 
 jobs:
   build:
-    name: "发布构建应用"
+    name: "构建应用"
     runs-on: ubuntu-latest
 
     steps:
@@ -33,10 +28,3 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           path:  dist/*
-
-      - name: Release
-        uses: softprops/action-gh-release@v3
-        with:
-          files:  dist/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

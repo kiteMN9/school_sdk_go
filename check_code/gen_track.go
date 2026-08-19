@@ -99,7 +99,7 @@ func GetTrackByte(x, y int) []byte {
 	// 直接序列化
 	jsonData, err := json.Marshal(trackData)
 	if err != nil {
-		panic(err)
+		return jsonData
 	}
 	//strTrack := string(jsonData)
 	// println(str_track)

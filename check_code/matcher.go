@@ -88,7 +88,7 @@ func FindBestMatchWithImages(largeImg image.Image, maskPixels []pixelInfo, dx in
 		draw.Draw(largeNRGBA, bounds, largeImg, image.Point{}, draw.Src)
 	}
 
-	for workerID := 0; workerID < numWorkers; workerID++ {
+	for workerID := range numWorkers {
 		wg.Add(1)
 		startX := workerID * xStep
 		endX := startX + xStep

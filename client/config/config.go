@@ -1,4 +1,4 @@
-package client
+package config
 
 import (
 	"encoding/json"
@@ -15,7 +15,7 @@ import (
 	"github.com/AlecAivazis/survey/v2/terminal"
 )
 
-type ConfigData struct {
+type Data struct {
 	filename  string
 	BaseURL   string `json:"url"`
 	Account   string `json:"account"`
@@ -27,9 +27,10 @@ type ConfigData struct {
 	ExistVerify bool   `json:"verify" default:"true"`
 	CasLogin    bool   `json:"casLogin" default:"false"`
 	UserAgent   string `json:"ua"`
+	PerInfo     bool   `json:"perInfo"`
 }
 
-func (c *ConfigData) WriteConfig() {
+func (c *Data) WriteConfig() {
 	dataByte, err := json.MarshalIndent(c, "", "  ") // 无前缀，两个空格缩进
 	if err != nil {
 		panic(fmt.Sprintf("JSON序列化失败: %v", err))
@@ -40,23 +41,28 @@ func (c *ConfigData) WriteConfig() {
 	}
 }
 
-func ReadConfig(filename string) *ConfigData {
-	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		initialData := ConfigData{
-			BaseURL:     "https://jwglxt.ycit.edu.cn/",
-			Account:     "account",
-			Passwd:      "password",
-			CasPasswd:   "cas2password",
-			UserAgent:   cfg.FireFoxUA,
-			Timeout:     "16s",
-			Want:        "want.xlsx",
-			ExistVerify: true,
-			CasLogin:    false,
-			filename:    filename,
-		}
-		initialData.WriteConfig()
-		initialData.SetConfigUserInfo(nil)
-		return &initialData
+func initConfig(filename string) *Data {
+	initialData := Data{
+		filename:    filename,
+		BaseURL:     "https://jwglxt.ycit.edu.cn/",
+		Account:     "account",
+		Passwd:      "password",
+		CasPasswd:   "cas2password",
+		Timeout:     "31s",
+		Want:        "want.xlsx",
+		UserAgent:   cfg.FireFoxUA,
+		ExistVerify: true,
+		CasLogin:    false,
+		PerInfo:     true,
+	}
+	initialData.WriteConfig()
+	initialData.SetConfigUserInfo(nil)
+	return &initialData
+}
+
+func ReadConfig(filename string) *Data {
+	if info, err := os.Stat(filename); os.IsNotExist(err) || info.Size() < 2 {
+		return initConfig(filename)
 	}
 	// 读取文件内容
 	byteValue, err := os.ReadFile(filename)
@@ -65,24 +71,25 @@ func ReadConfig(filename string) *ConfigData {
 		panic(err)
 	}
 
-	// 将 JSON 数据解析到结构体
-	var config ConfigData
-	config.ExistVerify = true
+	config := Data{
+		filename:    filename,
+		ExistVerify: true,
+		PerInfo:     true,
+	}
 	err = json.Unmarshal(byteValue, &config)
 	if err != nil {
 		fmt.Println("json配置解析失败", err)
 		log.Fatalln("json配置解析失败", err)
 		return nil
 	}
-	config.filename = filename
 	return &config
 }
 
-func (c *ConfigData) SetConfigUserInfo(config *ConfigData) {
+func (c *Data) SetConfigUserInfo(config *Data) {
 	var Account, Passwd string
 	var err error
 	if config == nil {
-		config = &ConfigData{}
+		config = &Data{}
 		if err := go_deep_copy.DeepCopy(c, config); err != nil {
 			panic(err)
 		}
@@ -127,7 +134,7 @@ func (c *ConfigData) SetConfigUserInfo(config *ConfigData) {
 	c.WriteConfig()
 }
 
-func (c *ConfigData) UpdateConfigUserInfo(verify bool) {
+func (c *Data) UpdateConfigUserInfo(verify bool) {
 	c.ExistVerify = verify
 	c.SetConfigUserInfo(nil)
 }

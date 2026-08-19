@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"school_sdk/client/cas2"
+	"school_sdk/client/config"
 	baseCfg "school_sdk/config"
 	"strings"
 	"time"
@@ -18,7 +19,7 @@ import (
 
 // APIClient 包装Resty客户端，动态应用配置
 type APIClient struct {
-	Config           *ConfigData
+	Config           *config.Data
 	Name             string
 	Http             *resty.Client
 	onlyCookieMethod bool
@@ -86,7 +87,7 @@ func NewBasicClient(baseURL string, timeout time.Duration) *resty.Client {
 	return client
 }
 
-func NewAPIClient(timeout time.Duration, cfg *ConfigData, isCas2, WX bool, route string) *APIClient {
+func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, route string) *APIClient {
 	client := NewBasicClient(cfg.BaseURL, timeout)
 	client.SetHeader("user-agent", cfg.UserAgent)
 	//client.EnableDebugLog()
@@ -155,7 +156,7 @@ func cookieJar(cookie *http.Cookie, burl string) *cookiejar.Jar {
 	return jar
 }
 
-func NewClientWithCookieJar(cfg *ConfigData, timeout time.Duration, jar *cookiejar.Jar) *APIClient {
+func NewClientWithCookieJar(cfg *config.Data, timeout time.Duration, jar *cookiejar.Jar) *APIClient {
 	client := NewBasicClient(cfg.BaseURL, timeout).
 		SetCookieJar(jar)
 	client.SetHeader("user-agent", cfg.UserAgent)

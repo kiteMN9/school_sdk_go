@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"school_sdk/client/config"
 	"syscall"
 	"time"
 
@@ -26,7 +27,6 @@ func main() {
 	flag.StringVar(&wantFile, "want", "want.xlsx", "选课愿望单文件路径")
 	//// 也可以添加长格式别名 (可选)
 	//flag.StringVar(&cfgFileName, "config", "config.json", "Specify config file path (long format)")
-	perInfo := flag.Bool("d", false, "不查个人信息")
 
 	flag.StringVar(&modeCode, "code", "", "模式代码建议5")
 
@@ -57,18 +57,17 @@ func main() {
 			os.Exit(0)
 		}
 	}()
-	//fmt.Println("交流群: ")
 	log.Println("程序启动") // 写入文件和控制台
 	startTime := time.Now()
-	fCfg := client.ReadConfig(cfgFileName)
+	fCfg := config.ReadConfig(cfgFileName)
 	if wantFile != "want.xlsx" || fCfg.Want == "" {
 		fCfg.Want = wantFile
 		fCfg.WriteConfig()
 	}
 	duration, err := time.ParseDuration(fCfg.Timeout)
 	if err != nil {
-		duration = 16 * time.Second
-		fCfg.Timeout = "16s"
+		duration = 31 * time.Second
+		fCfg.Timeout = "31s"
 		fCfg.WriteConfig()
 	}
 	apiClient := client.NewAPIClient(duration, fCfg, *cas2 || fCfg.CasLogin, *cas2wx, route)
@@ -82,7 +81,7 @@ func main() {
 		time.Sleep(2 * time.Second)
 		os.Exit(0)
 	}
-	if !(*perInfo) {
+	if fCfg.PerInfo {
 		client.PrintStudentInfo2(apiClient.GetJsonInfo())
 	}
 

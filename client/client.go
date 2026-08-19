@@ -88,6 +88,10 @@ func NewBasicClient(baseURL string, timeout time.Duration) *resty.Client {
 }
 
 func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, route string) *APIClient {
+	u, err := url.Parse(cfg.BaseURL)
+	if err != nil {
+		log.Fatal(err)
+	}
 	client := NewBasicClient(cfg.BaseURL, timeout)
 	client.SetHeader("user-agent", cfg.UserAgent)
 	//client.EnableDebugLog()
@@ -101,7 +105,7 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 			Name:  "route",
 			Value: route, // 手动设置成一样的会有非常明显的挤号问题
 		}
-		client.SetCookieJar(cookieJar(cookie, cfg.BaseURL))
+		client.CookieJar().SetCookies(u, []*http.Cookie{cookie})
 	} else if strings.HasPrefix(cfg.BaseURL, "https://jwglxt.ycit") || strings.HasPrefix(cfg.BaseURL, "http://jwglxt.ycit") || strings.HasPrefix(cfg.BaseURL, "http://202.119.141") {
 		routes := []string{
 			//"018f9ff65252ca4f51865070844ae0be", // 慢且cas登录失败
@@ -116,7 +120,7 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 			Name:  "route",
 			Value: selected, // 手动设置成一样的会有非常明显的挤号问题
 		}
-		client.SetCookieJar(cookieJar(cookie, cfg.BaseURL))
+		client.CookieJar().SetCookies(u, []*http.Cookie{cookie})
 	}
 
 	//transport, _ := client.HTTPTransport()
@@ -139,21 +143,6 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 		return apiClient
 	}
 	return apiClient
-}
-
-func cookieJar(cookie *http.Cookie, burl string) *cookiejar.Jar {
-	cookies := []*http.Cookie{cookie}
-	jar, err := cookiejar.New(nil)
-	if err != nil {
-		log.Fatal(err)
-	}
-	u, err := url.Parse(burl)
-	if err != nil {
-		log.Fatal(err)
-	}
-	jar.SetCookies(u, cookies)
-
-	return jar
 }
 
 func NewClientWithCookieJar(cfg *config.Data, timeout time.Duration, jar *cookiejar.Jar) *APIClient {

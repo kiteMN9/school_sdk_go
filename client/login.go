@@ -9,7 +9,8 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http/cookiejar"
+	"net/http"
+	"net/url"
 	"os"
 	"regexp"
 	"school_sdk/client/rsa"
@@ -175,8 +176,8 @@ func (a *APIClient) captchaControl(ctx context.Context, wg *sync.WaitGroup, Logi
 			log.Println(a.Http.Cookies())
 			fmt.Println("清空cookie")
 			log.Println("清空cookie")
-			jar, _ := cookiejar.New(nil)
-			a.Http.SetCookieJar(jar)
+			u, _ := url.Parse(a.Http.BaseURL())
+			a.Http.CookieJar().SetCookies(u, []*http.Cookie{})
 			*csrfToken, _, _ = a.getRawCsrfToken()
 			*rtk = a.getRTK()
 			*t = strconv.FormatInt(time.Now().UnixMilli(), 10)
@@ -304,6 +305,7 @@ func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
 			continue
 		}
 		if resp.IsStatusFailure() {
+			failCount++
 			if resp.StatusCode() == 404 {
 				fmt.Println("url:", a.Http.BaseURL())
 				fmt.Println("404, url 填的有问题吧，是不是少了 /jwglxt 或者多了")
@@ -311,11 +313,13 @@ func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
 				time.Sleep(4 * time.Second)
 				continue
 			}
-			failCount++
+			if resp.StatusCode() == 403 {
+				fmt.Println("url:", a.Http.BaseURL())
+			}
 			log.Println("CSRF http:", resp.Status())
-		}
-		if failCount > 2 {
-			fmt.Println()
+			fmt.Println("CSRF http:", resp.Status())
+			time.Sleep(1 * time.Second)
+			continue
 		}
 
 		if resp.IsStatusSuccess() {

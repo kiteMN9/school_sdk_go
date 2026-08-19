@@ -47,7 +47,7 @@ func baseURLLegalCheck(baseURL string) string {
 	return baseURL
 }
 
-func NewBasicClient(baseURL string, timeout time.Duration) *resty.Client {
+func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) *resty.Client {
 	baseURLLegalCheck(baseURL)
 	client := resty.New().
 		SetRedirectPolicy(resty.RedirectNoPolicy()).
@@ -69,21 +69,25 @@ func NewBasicClient(baseURL string, timeout time.Duration) *resty.Client {
 
 	client.SetTimeout(timeout) // 整个请求的超时时间
 	client.SetRetryCount(1).
-		AddRetryConditions(resty.RetryConditionStatus5XX).
-		SetRetryWaitTime(300 * time.Millisecond). // 设置两次重试之间的基础等待时间
-		SetRetryMaxWaitTime(3 * time.Second)      // 设置两次重试之间的最大等待时间
+		AddRetryConditions(resty.RetryConditionStatus5XX)
 
 	refer, err := JoinURL(baseURL, baseCfg.LoginIndex)
 	if err != nil {
 		log.Fatal(err)
 	}
 	client.SetHeader("Referer", refer)
-
 	client.SetHeader("Accept", "*/*")
+	client.SetHeader("user-agent", fCfg.UserAgent)
 
 	// Add decompresser into Resty
 	client.AddContentDecompresser("br", decompressBrotli)
 	//client.AddContentDecompresser("zstd", decompressZstd)
+
+	if strings.HasPrefix(fCfg.BaseURL, "https://") {
+		if transport, _ := client.HTTPTransport(); transport != nil {
+			transport.IdleConnTimeout = 68 * time.Second
+		}
+	}
 	return client
 }
 
@@ -92,14 +96,8 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 	if err != nil {
 		log.Fatal(err)
 	}
-	client := NewBasicClient(cfg.BaseURL, timeout)
-	client.SetHeader("user-agent", cfg.UserAgent)
-	//client.EnableDebugLog()
+	client := NewBasicClient(cfg.BaseURL, timeout, cfg)
 
-	if strings.HasPrefix(cfg.BaseURL, "https://") {
-		transport, _ := client.HTTPTransport()
-		transport.IdleConnTimeout = 68 * time.Second
-	}
 	if route != "" {
 		cookie := &http.Cookie{ // 过 nginx有这个
 			Name:  "route",
@@ -146,7 +144,7 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 }
 
 func NewClientWithCookieJar(cfg *config.Data, timeout time.Duration, jar *cookiejar.Jar) *APIClient {
-	client := NewBasicClient(cfg.BaseURL, timeout).
+	client := NewBasicClient(cfg.BaseURL, timeout, cfg).
 		SetCookieJar(jar)
 	client.SetHeader("user-agent", cfg.UserAgent)
 	//SetTLSFingerprintRandomized().

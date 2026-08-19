@@ -46,27 +46,26 @@ func (a *APIClient) getPubParams(ctx context.Context, cfg *APIConfig, save bool)
 			}
 			continue
 		}
+		if len(resp.Bytes()) == 0 {
+			log.Println("getPubParams len(resp.Bytes()) == 0")
+			time.Sleep(time.Millisecond * 1500)
+			continue
+		}
 		htmlContent := utils.RemoveEmptyLines(resp.String())
 		if utils.UserIsLogin(a.Config.Account, htmlContent) && !a.CheckLogout302(resp) {
-			// fmt.Println(htmlContent)
-			// return
 		} else {
 			a.ReLogin()
 			continue
 		}
-		// fmt.Println(htmlContent)
-		//docNode, err1 := htmlquery.Parse(strings.NewReader(htmlContent)) // 相当于etree.HTML()
-		docNode, err1 := htmlquery.Parse(bytes.NewReader(resp.Bytes())) // 相当于etree.HTML()
-		//docNode, err1 := htmlquery.Parse(resp.Body) // 相当于etree.HTML()
-		//resp.Body.Close()
+		docNode, err1 := htmlquery.Parse(bytes.NewReader(resp.Bytes()))
+		//docNode, err1 := htmlquery.Parse(resp.Body)
 		if err1 != nil {
 			log.Println(err1)
-			fmt.Println("\r他妈个逼这什么情况，完成请求然后解析出错？")
-			log.Println("他妈个逼这什么情况，完成请求然后解析出错？", err1)
+			fmt.Println("\r完成请求然后解析出错？")
+			log.Println("完成请求然后解析出错？", err1)
 			continue
 		}
 		if getXpathValue(docNode, "iskxk") == "0" {
-			//fmt.Printf("\r%d 当前还不能选课", i)
 			// 当前不属于选课阶段
 			statNode := htmlquery.Find(docNode, `//div[@class="nodata"]/span/text()`)
 			if len(statNode) != 0 {
@@ -377,19 +376,17 @@ func (a *APIClient) getCourseList(ctx context.Context, cfg *APIConfig) []CourseL
 			time.Sleep(1 * time.Second)
 			continue
 		}
-
-		if err := json.Unmarshal(resp.Bytes(), &result); err != nil {
-			if resp.String() == `"0"` || resp.String() == `"1"` {
-				fmt.Println("搜索课程失败 msg:", resp.String())
-				log.Println("搜索课程失败 msg:", resp.String())
-				cfg.needInit = true
-				return nil
+		if resp.IsStatusSuccess() {
+			if err := json.Unmarshal(resp.Bytes(), &result); err != nil {
+				if resp.String() == `"0"` || resp.String() == `"1"` {
+					fmt.Println("搜索课程失败 msg:", resp.String())
+					log.Println("搜索课程失败 msg:", resp.String())
+					cfg.needInit = true
+					return nil
+				}
+				fmt.Println(err)
+				log.Println(err, resp.String())
 			}
-			fmt.Println(err)
-			log.Println(err, resp.String())
-		}
-		//resp.IsSuccess()
-		if a.LoginCheck(resp) {
 			if !cfg.listDump {
 				log.Println(resp.String())
 				cfg.listDump = true
@@ -397,11 +394,19 @@ func (a *APIClient) getCourseList(ctx context.Context, cfg *APIConfig) []CourseL
 			if result.TmpList != nil {
 				return result.TmpList
 			}
+			// {"msg":"加密串错误，可以清除浏览器缓存后刷新网页重试！","flag":"0"}
+			if result.Msg != "" || result.Flag != "" {
+				fmt.Println(resp.String())
+				return result.TmpList
+			}
 
 			//fmt.Println(resp.String())
 			fmt.Println("课程列表为空")
 			time.Sleep(1 * time.Second)
 			continue
+		}
+
+		if a.LoginCheck(resp) {
 		} else {
 			// fmt.Println("重新登录")
 			a.ReLogin()

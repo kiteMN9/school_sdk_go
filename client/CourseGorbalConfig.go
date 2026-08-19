@@ -237,6 +237,8 @@ type CourseListDic struct {
 type GetCourseListResult struct {
 	TmpList []CourseListDic `json:"tmpList"` // 搜索课程返回的清单
 	Sfxsjc  string          `json:"sfxsjc"`
+	Msg     string          `json:"msg"`
+	Flag    string          `json:"flag"`
 }
 
 type SafeCustomCourseSlice struct {

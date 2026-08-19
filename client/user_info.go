@@ -11,7 +11,7 @@ import (
 
 func (a *APIClient) GetJsonInfo() UserInfo {
 	var result UserInfo
-	resp, err := a.Http.R().
+	resp, err := a.hedgeC.R().
 		SetTimeout(12 * time.Second).
 		//SetResult(&result).
 		SetQueryParams(map[string]string{

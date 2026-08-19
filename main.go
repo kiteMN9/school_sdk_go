@@ -15,7 +15,7 @@ import (
 	"school_sdk/utils"
 )
 
-var version = "school_sdk_go 1.2.16"
+var version = "school_sdk_go 1.2.17-dev"
 
 func main() {
 	var cfgFileName, wantFile, modeCode, route string
@@ -66,8 +66,8 @@ func main() {
 	}
 	duration, err := time.ParseDuration(fCfg.Timeout)
 	if err != nil {
-		duration = 31 * time.Second
-		fCfg.Timeout = "31s"
+		duration = 47 * time.Second
+		fCfg.Timeout = "47s"
 		fCfg.WriteConfig()
 	}
 	apiClient := client.NewAPIClient(duration, fCfg, *cas2 || fCfg.CasLogin, *cas2wx, route)

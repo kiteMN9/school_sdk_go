@@ -15,7 +15,7 @@ import (
 func (a *APIClient) getScoreRaw(year string, term int) []Score {
 	var score ScoreRaw
 	for range 2 {
-		resp, err := a.Http.R().
+		resp, err := a.hedgeC.R().
 			SetQueryParams(map[string]string{
 				"doType": "query",
 				"gnmkdm": "N305005",

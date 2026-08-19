@@ -47,9 +47,6 @@ func (a *APIClient) ReLogin() bool {
 	}
 	fmt.Println("\r重新登录")
 	reStartTime := time.Now()
-	//log.Println("清空 cookie")
-	//jar, _ := cookiejar.New(nil)
-	//a.Http.SetCookieJar(jar)
 	if a.Login() {
 		lastSuccessTime = time.Now()
 		log.Println("重新登录用时:", time.Since(reStartTime))
@@ -70,7 +67,7 @@ func (a *APIClient) Login() bool {
 	}
 	var LoginExtend = generateLoginExtend(a.Config.UserAgent)
 
-	for count := 0; count < 15; count++ {
+	for range 15 {
 		reqTime := strconv.FormatInt(time.Now().UnixMilli(), 10)
 		csrfToken, yzm, stat := a.getRawCsrfToken()
 		if stat {
@@ -98,7 +95,7 @@ func (a *APIClient) Login() bool {
 			wg.Wait()
 
 			//csrfToken = a.getRawCsrfToken()
-			stat, err := a.postLogin(csrfToken, reqTime, encryptedResult, "")
+			stat_, err := a.postLogin(csrfToken, reqTime, encryptedResult, "")
 			if errors.Is(err, ExistVerify) {
 				a.Config.UpdateConfigUserInfo(true)
 				continue
@@ -110,7 +107,7 @@ func (a *APIClient) Login() bool {
 			if errors.Is(err, CsrfNotExist) {
 				fmt.Println("未获取到CSRF")
 			}
-			return stat
+			return stat_
 		}
 	}
 	return false
@@ -274,7 +271,7 @@ func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
 	var exists bool
 	for {
 		// log.Println("csrf debug")
-		resp, err := a.Http.R().
+		resp, err := a.hedgeC.R().
 			//SetContext(ctx).
 			//SetRetryCount(1).
 			//SetQueryParam("time", strconv.FormatInt(time.Now().UnixMilli(), 10)).
@@ -298,9 +295,8 @@ func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
 				log.Println("CSRF HTTP 请求失败:", failCount, err)
 				failCount++
 			}
-			if failCount > 1 {
-				fmt.Printf("\r%d %s", failCount, err.Error())
-			}
+
+			fmt.Printf("\r%d %s", failCount, err.Error())
 			time.Sleep(600 * time.Millisecond)
 			continue
 		}
@@ -362,7 +358,7 @@ func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
 func (a *APIClient) getRTK() string {
 	// 获取 cookie rtk
 	for {
-		resp, err := a.Http.R().
+		resp, err := a.hedgeC.R().
 			SetQueryParams(map[string]string{
 				"type":       "resource",
 				"instanceId": "zfcaptchaLogin",
@@ -644,9 +640,9 @@ func (a *APIClient) postLogin(csrf, t, mm, yzm string) (bool, error) {
 			} else {
 				fmt.Println("postLogin http error")
 			}
-			log.Println("postLogin HTTP 请求失败:", err)
-			// fmt.Println(err)
-			time.Sleep(150 * time.Millisecond)
+			log.Println("postLogin 请求失败:", err)
+			fmt.Println(err)
+			time.Sleep(170 * time.Millisecond)
 			continue
 		}
 		//log.Println()
@@ -716,12 +712,12 @@ func isLogin(account, html string) (bool, error) {
 
 func generateLoginExtend(UserAgent string) []byte {
 	// 查找第一个 '/' 的位置
-	slashIndex := strings.Index(UserAgent, "/")
+	_, after, ok := strings.Cut(UserAgent, "/")
 	modifiedUserAgent := UserAgent
 
-	if slashIndex != -1 {
+	if ok {
 		// 截取第一个 '/' 之后的内容
-		modifiedUserAgent = UserAgent[slashIndex+1:]
+		modifiedUserAgent = after
 	}
 
 	// 创建 JSON 结构体
@@ -797,10 +793,13 @@ func (a *APIClient) ssoTicketLogin(location string) bool {
 	}
 	var location2 string
 	for range 8 {
-		resp, err := a.Http.R().
+		resp, err := a.hedgeC.R().
 			SetRetryCount(1).
 			Get(location) // https://jwglxt.ycit.edu.cn/sso/hnyyxyiotlogin?targetUrl={base64}aHR0cDovL2p3Z2x4dC55Y2l0LmVkdS5jbi9zc28vc3NvL2luZGV4LmpzcA==&ticket=ST-529025-5R1TqFz
 		if err != nil {
+			if errors.Is(err, io.EOF) {
+				log.Println("ssoTicketLogin EOF")
+			}
 			fmt.Println(err)
 			log.Println(err)
 			time.Sleep(2 * time.Second)
@@ -826,12 +825,13 @@ func (a *APIClient) ssoTicketLogin(location string) bool {
 	}
 
 	if location2 == "" {
+		a.cookie()
 		return false
 	}
 	location2 = strings.Replace(location2, "http://", "https://", -1)
 
 	for range 6 {
-		resp, err := a.Http.R().
+		resp, err := a.hedgeC.R().
 			SetHeader("Referer", "https://portal.ycit.edu.cn/main.html").
 			SetRetryCount(1).
 			Get(location2)
@@ -865,9 +865,11 @@ func (a *APIClient) ssoTicketLogin(location string) bool {
 			// 425b918000ed5b18d10afb85fbbf8ec7 1
 			// 018f9ff65252ca4f51865070844ae0be ❌
 			// 34ff17f478ebaa7e4063c9d5a95901d0 ❌
+			fmt.Println("登录成功")
 			return true
 		}
 		break
 	}
+	a.cookie()
 	return false
 }

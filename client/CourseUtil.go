@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"net/url"
 	"os"
 	"os/signal"
 	baseCfg "school_sdk/config"
@@ -812,4 +813,15 @@ func (a *APIClient) quitSelectedNormal(cfg *APIConfig) {
 		}
 	}
 
+}
+
+func (a *APIClient) cookie() {
+	targetURL, _ := url.Parse(a.Http.BaseURL())
+	cookies := a.Http.CookieJar().Cookies(targetURL)
+	parts := make([]string, len(cookies))
+	for i, c := range cookies {
+		parts[i] = c.Name + "=" + c.Value
+	}
+	cookieStr := strings.Join(parts, "; ")
+	fmt.Println(cookieStr)
 }

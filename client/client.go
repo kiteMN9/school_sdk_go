@@ -10,6 +10,7 @@ import (
 	"os"
 	"school_sdk/client/cas2"
 	"school_sdk/client/config"
+	"school_sdk/client/hedge"
 	baseCfg "school_sdk/config"
 	"strings"
 	"time"
@@ -22,6 +23,7 @@ type APIClient struct {
 	Config           *config.Data
 	Name             string
 	Http             *resty.Client
+	hedgeC           *resty.Client
 	onlyCookieMethod bool
 	enableCas2       bool
 	cas2Client       *cas2.Client
@@ -47,7 +49,7 @@ func baseURLLegalCheck(baseURL string) string {
 	return baseURL
 }
 
-func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) *resty.Client {
+func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) (*resty.Client, *resty.Client) {
 	baseURLLegalCheck(baseURL)
 	client := resty.New().
 		SetRedirectPolicy(resty.RedirectNoPolicy()).
@@ -55,20 +57,20 @@ func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) *r
 
 	if os.Getenv("proxy") == "1" {
 		client.SetProxy("http://127.0.0.1:8866")
-		tls := client.TLSClientConfig()
-		tls.InsecureSkipVerify = true
-		//client.SetCloseConnection(true)
+		if tls_ := client.TLSClientConfig(); tls_ != nil {
+			tls_.InsecureSkipVerify = true
+			//client.SetCloseConnection(true)
+		}
 	}
+
 	if os.Getenv("trace") == "1" {
 		client.SetTrace(true)
 	}
-
 	if timeout < 4*time.Second {
 		timeout = 4 * time.Second
 	}
-
 	client.SetTimeout(timeout) // 整个请求的超时时间
-	client.SetRetryCount(1).
+	client.SetRetryCount(3).
 		AddRetryConditions(resty.RetryConditionStatus5XX)
 
 	refer, err := JoinURL(baseURL, baseCfg.LoginIndex)
@@ -88,7 +90,27 @@ func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) *r
 			transport.IdleConnTimeout = 68 * time.Second
 		}
 	}
-	return client
+
+	if fCfg.Hedging {
+		delay, err := time.ParseDuration(fCfg.HedgingDelay)
+		if err != nil {
+			delay = 16 * time.Second
+			fCfg.HedgingDelay = "16s"
+			fCfg.WriteConfig()
+		}
+		ht := hedge.NewHedging().
+			SetDelay(delay).
+			SetMaxRequest(3).
+			SetTransport(client.Transport())
+		hedgedClient := &http.Client{
+			Transport: ht,
+			Jar:       client.Client().Jar,
+		}
+		htc := resty.NewWithClient(hedgedClient).SetBaseURL(baseURL).
+			SetTimeout(timeout)
+		return client, htc
+	}
+	return client, client
 }
 
 func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, route string) *APIClient {
@@ -96,8 +118,7 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 	if err != nil {
 		log.Fatal(err)
 	}
-	client := NewBasicClient(cfg.BaseURL, timeout, cfg)
-
+	client, htc := NewBasicClient(cfg.BaseURL, timeout, cfg)
 	if route != "" {
 		cookie := &http.Cookie{ // 过 nginx有这个
 			Name:  "route",
@@ -118,6 +139,7 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 			Name:  "route",
 			Value: selected, // 手动设置成一样的会有非常明显的挤号问题
 		}
+		//log.Println(selected)
 		client.CookieJar().SetCookies(u, []*http.Cookie{cookie})
 	}
 
@@ -133,6 +155,7 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 	apiClient := &APIClient{
 		Config:     cfg,
 		Http:       client,
+		hedgeC:     htc,
 		enableCas2: isCas2 || WX,
 	}
 
@@ -144,8 +167,9 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 }
 
 func NewClientWithCookieJar(cfg *config.Data, timeout time.Duration, jar *cookiejar.Jar) *APIClient {
-	client := NewBasicClient(cfg.BaseURL, timeout, cfg).
-		SetCookieJar(jar)
+	client, htc := NewBasicClient(cfg.BaseURL, timeout, cfg)
+	client.SetCookieJar(jar)
+	htc.SetCookieJar(jar)
 	client.SetHeader("user-agent", cfg.UserAgent)
 	//SetTLSFingerprintRandomized().
 	//client.SetProxyURL("http://127.0.0.1:8866")
@@ -156,6 +180,7 @@ func NewClientWithCookieJar(cfg *config.Data, timeout time.Duration, jar *cookie
 	return &APIClient{
 		Config:           cfg,
 		Http:             client,
+		hedgeC:           htc,
 		onlyCookieMethod: true,
 	}
 }
@@ -173,4 +198,4 @@ func JoinURL(base, endpoint string) (string, error) {
 	return fullURL.String(), nil
 }
 
-var TERM = map[int]string{1: "3", 2: "12", 3: "16"}
+var TERM = map[int]string{0: "", 1: "3", 2: "12", 3: "16"}

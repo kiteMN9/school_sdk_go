@@ -24,10 +24,12 @@ type Data struct {
 	Timeout   string `json:"timeout"`
 	Want      string `json:"want"`
 	//Verify    string `json:"verify"`
-	ExistVerify bool   `json:"verify" default:"true"`
-	CasLogin    bool   `json:"casLogin" default:"false"`
-	UserAgent   string `json:"ua"`
-	PerInfo     bool   `json:"perInfo"`
+	ExistVerify  bool   `json:"verify" default:"true"`
+	CasLogin     bool   `json:"casLogin" default:"false"`
+	UserAgent    string `json:"ua"`
+	PerInfo      bool   `json:"perInfo"`
+	Hedging      bool   `json:"hedging"`
+	HedgingDelay string `json:"hedgingDelay"`
 }
 
 func (c *Data) WriteConfig() {
@@ -43,17 +45,19 @@ func (c *Data) WriteConfig() {
 
 func initConfig(filename string) *Data {
 	initialData := Data{
-		filename:    filename,
-		BaseURL:     "https://jwglxt.ycit.edu.cn/",
-		Account:     "account",
-		Passwd:      "password",
-		CasPasswd:   "cas2password",
-		Timeout:     "31s",
-		Want:        "want.xlsx",
-		UserAgent:   cfg.FireFoxUA,
-		ExistVerify: true,
-		CasLogin:    false,
-		PerInfo:     true,
+		filename:     filename,
+		BaseURL:      "https://jwglxt.ycit.edu.cn/",
+		Account:      "account",
+		Passwd:       "password",
+		CasPasswd:    "cas2password",
+		Timeout:      "47s",
+		Want:         "want.xlsx",
+		UserAgent:    cfg.FireFoxUA,
+		ExistVerify:  true,
+		CasLogin:     false,
+		PerInfo:      true,
+		Hedging:      false,
+		HedgingDelay: "16s",
 	}
 	initialData.WriteConfig()
 	initialData.SetConfigUserInfo(nil)

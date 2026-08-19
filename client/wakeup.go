@@ -415,7 +415,7 @@ func (a *APIClient) getSelectedList(xkxnm, xkxqm string) KbList {
 	fmt.Println("个人课表查询")
 	var result KbList
 	for {
-		resp, err := a.Http.R().
+		resp, err := a.hedgeC.R().
 			SetTimeout(time.Second*23).
 			SetQueryParam("gnmkdm", "N2151").
 			//SetQueryParam("su", a.Config.Account).

@@ -1,6 +1,7 @@
 package cas2
 
 import (
+	"context"
 	"crypto/md5"
 	"encoding/hex"
 	"fmt"
@@ -28,7 +29,7 @@ func NewCasWX(account, password string) *Client {
 	md5Str := hex.EncodeToString(hash[:])
 	//fmt.Println("MD5:", md5Str)
 
-	portalHttp := resty.New().
+	portalHttp := client.Clone(context.Background()).
 		SetBaseURL("https://portal.ycit.edu.cn/").
 		//SetUserAgent(config.ChromeUA).
 		SetHeader("user-agent", config.ChromeUA).

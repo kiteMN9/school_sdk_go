@@ -52,7 +52,7 @@ func NewCas(account, password, UA string, wx bool) *Client {
 		client.SetProxy("http://127.0.0.1:8866")
 	}
 
-	portalHttp := resty.New().
+	portalHttp := client.Clone(context.Background()).
 		SetBaseURL("https://portal.ycit.edu.cn/").
 		SetHeader("user-agent", UA).
 		SetRedirectPolicy(resty.RedirectNoPolicy())

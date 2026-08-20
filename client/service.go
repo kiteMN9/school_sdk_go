@@ -34,7 +34,7 @@ func (a *APIClient) CheckSession(ctx context.Context) bool {
 		fmt.Println(err)
 	}
 
-	if utils.UserIsLogin(a.Config.Account, resp.String()) && !a.CheckLogout302(resp) {
+	if !a.CheckLogout302(resp) && utils.UserIsLogin(a.Config.Account, resp.String()) {
 		return true
 	}
 	fmt.Println("Login check:", resp.Status())
@@ -58,18 +58,18 @@ func (a *APIClient) CheckSession2(ctx context.Context) bool {
 		if errors.Is(err, context.Canceled) {
 			log.Println("保持登录已取消")
 			return true
-		} else {
-			fmt.Println(err)
 		}
+
+		fmt.Println(err)
 	}
 
-	if utils.UserIsLogin(a.Config.Account, resp.String()) && !a.CheckLogout302(resp) {
+	if !a.CheckLogout302(resp) && utils.UserIsLogin(a.Config.Account, resp.String()) {
 		// Ctrl里有关重定向是302，不关是200
 		return true
-	} else {
-		fmt.Println(resp.Status())
-		return a.ReLogin()
 	}
+
+	fmt.Println(resp.Status())
+	return a.ReLogin()
 }
 
 func (a *APIClient) LoginCheck(resp *resty.Response) bool {
@@ -84,7 +84,7 @@ func (a *APIClient) LoginCheck(resp *resty.Response) bool {
 		time.Sleep(4 * time.Second)
 		return true
 	}
-	return utils.UserIsLogin(a.Config.Account, resp.String()) && !a.CheckLogout302(resp)
+	return !a.CheckLogout302(resp) && utils.UserIsLogin(a.Config.Account, resp.String())
 }
 
 func (a *APIClient) CheckLogout302(resp *resty.Response) bool {
@@ -93,13 +93,17 @@ func (a *APIClient) CheckLogout302(resp *resty.Response) bool {
 	}
 	if resp.StatusCode() == http.StatusFound {
 		location := resp.Header().Get("Location")
+		if strings.Contains(location, "kickout=1") {
+			fmt.Println("kickout=1")
+			return true
+		}
 		if strings.Contains(location, baseCfg.LoginIndex) || strings.Contains(location, a.Http.BaseURL()) {
 			//println("Logout302")
 			return true
-		} else {
-			log.Println("CheckLogout302:", resp.Header())
-			fmt.Println("意料之外的错误！", resp.Header())
 		}
+
+		log.Println("CheckLogout302: StatusCode=302 header:", resp.Header())
+		fmt.Println("意料之外的错误！ StatusCode=302", resp.Header())
 	}
 	return false
 }

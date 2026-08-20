@@ -43,7 +43,7 @@ func (a *APIClient) getPubParams(ctx context.Context, cfg *APIConfig, save bool)
 			} else {
 				fmt.Println("index请求出错:", err)
 				log.Println("index请求出错:", err)
-				time.Sleep(time.Millisecond * 500)
+				time.Sleep(time.Millisecond * 2500)
 			}
 			continue
 		}
@@ -54,7 +54,7 @@ func (a *APIClient) getPubParams(ctx context.Context, cfg *APIConfig, save bool)
 			continue
 		}
 		htmlContent := utils.RemoveEmptyLines(resp.String())
-		if utils.UserIsLogin(a.Config.Account, htmlContent) && !a.CheckLogout302(resp) {
+		if !a.CheckLogout302(resp) && utils.UserIsLogin(a.Config.Account, htmlContent) {
 		} else {
 			a.ReLogin()
 			continue
@@ -77,7 +77,7 @@ func (a *APIClient) getPubParams(ctx context.Context, cfg *APIConfig, save bool)
 				fmt.Printf("\r%d %s", i, jdStr)
 				log.Printf("%d %s", i, jdStr)
 				needEnter = true
-				time.Sleep(650 * time.Millisecond)
+				time.Sleep(3850 * time.Millisecond)
 			}
 			continue
 		}

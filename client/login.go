@@ -296,7 +296,7 @@ func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
 				failCount++
 			}
 
-			fmt.Printf("\r%d %s", failCount, err.Error())
+			fmt.Printf("\r%d %s\n", failCount, err.Error())
 			time.Sleep(600 * time.Millisecond)
 			continue
 		}

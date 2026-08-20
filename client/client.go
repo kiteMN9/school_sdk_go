@@ -81,9 +81,7 @@ func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) (*
 	client.SetHeader("Accept", "*/*")
 	client.SetHeader("user-agent", fCfg.UserAgent)
 
-	// Add decompresser into Resty
 	client.AddContentDecompresser("br", decompressBrotli)
-	//client.AddContentDecompresser("zstd", decompressZstd)
 
 	if strings.HasPrefix(fCfg.BaseURL, "https://") {
 		if transport, _ := client.HTTPTransport(); transport != nil {
@@ -107,10 +105,11 @@ func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) (*
 			Jar:       client.Client().Jar,
 		}
 		htc := resty.NewWithClient(hedgedClient).SetBaseURL(baseURL).
-			SetTimeout(timeout)
+			SetTimeout(timeout).SetRedirectPolicy(resty.RedirectNoPolicy())
 		htc.SetHeader("Referer", refer)
 		htc.SetHeader("Accept", "*/*")
 		htc.SetHeader("user-agent", fCfg.UserAgent)
+		htc.AddContentDecompresser("br", decompressBrotli)
 		return client, htc
 	}
 	return client, client

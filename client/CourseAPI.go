@@ -47,16 +47,16 @@ func (a *APIClient) getPubParams(ctx context.Context, cfg *APIConfig, save bool)
 			}
 			continue
 		}
-		if len(resp.Bytes()) == 0 {
-			log.Println("getPubParams len(resp.Bytes()) == 0")
-			fmt.Println("getPubParams len(resp.Bytes()) == 0")
-			time.Sleep(time.Millisecond * 1500)
-			continue
-		}
-		htmlContent := utils.RemoveEmptyLines(resp.String())
-		if !a.CheckLogout302(resp) && utils.UserIsLogin(a.Config.Account, htmlContent) {
+
+		if !a.CheckLogout302(resp) && utils.UserIsLogin(a.Config.Account, resp.String()) {
 		} else {
 			a.ReLogin()
+			continue
+		}
+		if len(resp.Bytes()) == 0 {
+			log.Println("getPubParams len(resp.Bytes()) == 0", resp.Status())
+			fmt.Println("getPubParams len(resp.Bytes()) == 0", resp.Status())
+			time.Sleep(time.Millisecond * 1500)
 			continue
 		}
 		docNode, err1 := htmlquery.Parse(bytes.NewReader(resp.Bytes()))
@@ -87,6 +87,7 @@ func (a *APIClient) getPubParams(ctx context.Context, cfg *APIConfig, save bool)
 			needEnter = false
 		}
 		parseYzbIndexHtml(cfg, docNode)
+		htmlContent := utils.RemoveEmptyLines(resp.String())
 		if !save {
 			log.Println(htmlContent)
 		}

@@ -325,6 +325,10 @@ func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
 				time.Sleep(150 * time.Millisecond)
 				continue
 			}
+			if errMsg := strings.TrimSpace(doc.Find("#tips").Text()); errMsg != "" {
+				log.Println(errMsg)
+				fmt.Println(errMsg)
+			}
 
 			if doc.Find("#yzmDiv").Text() != "" {
 				yzm = true

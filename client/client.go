@@ -108,6 +108,9 @@ func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) (*
 		}
 		htc := resty.NewWithClient(hedgedClient).SetBaseURL(baseURL).
 			SetTimeout(timeout)
+		htc.SetHeader("Referer", refer)
+		htc.SetHeader("Accept", "*/*")
+		htc.SetHeader("user-agent", fCfg.UserAgent)
 		return client, htc
 	}
 	return client, client

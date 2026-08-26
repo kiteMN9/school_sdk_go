@@ -2,6 +2,7 @@ package GPA
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"regexp"
 	"strings"
@@ -9,12 +10,12 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
-func GPA(htmlText string) {
-	if htmlText == "" {
+func GPA(htmlBody io.Reader) {
+	if htmlBody == nil {
 		return
 	}
 	// 加载HTML文档
-	doc, err := goquery.NewDocumentFromReader(strings.NewReader(htmlText))
+	doc, err := goquery.NewDocumentFromReader(htmlBody)
 	if err != nil {
 		fmt.Println("Error loading HTML:", err)
 		log.Println("Error loading HTML:", err)
@@ -25,6 +26,7 @@ func GPA(htmlText string) {
 	name := doc.Find("font[style='font-weight: bold']").First().Text()
 	nameL := regexp.MustCompile(`(.+?)同学`).FindStringSubmatch(name)
 	if len(nameL) < 2 {
+		fmt.Println("未找到有效信息")
 		return
 	}
 	name = nameL[1]

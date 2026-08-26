@@ -1,7 +1,7 @@
 package client
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"encoding/base64"
 	"encoding/json"
@@ -24,6 +24,7 @@ import (
 	"school_sdk/utils"
 
 	"github.com/PuerkitoBio/goquery"
+	"golang.org/x/net/html"
 )
 
 var ExistVerify = fmt.Errorf("请先滑动图片进行验证！")
@@ -70,6 +71,7 @@ func (a *APIClient) Login() bool {
 	for range 15 {
 		reqTime := strconv.FormatInt(time.Now().UnixMilli(), 10)
 		csrfToken, yzm, stat := a.getRawCsrfToken()
+		log.Println("csrf:", time.Now())
 		if stat {
 			return true
 		}
@@ -123,6 +125,7 @@ func (a *APIClient) getCaptchaLogin(LoginExtend []byte, csrfToken, reqTime strin
 
 	//Eb := strconv.FormatInt(time.Now().UnixMilli(), 10)
 	rtk = a.getRTK()
+	log.Println("rtk:RAt", time.Now())
 
 	// fmt.Println(encryptedResult)
 	// 发起登录请求
@@ -263,98 +266,142 @@ func (a *APIClient) getKaptchaImage() string {
 }
 
 func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
-	// 获取CSRF令牌
 	var failCount int
 	var timeout int
-	var csrfToken string
-	var yzm bool
-	var exists bool
+	type result struct {
+		con       bool
+		csrfToken string
+		haveYZM   bool
+		isLogin   bool
+	}
 	for {
-		// log.Println("csrf debug")
-		resp, err := a.hedgeC.R().
-			//SetContext(ctx).
-			//SetRetryCount(1).
-			//SetQueryParam("time", strconv.FormatInt(time.Now().UnixMilli(), 10)).
-			//SetQueryParams(map[string]string{ // ?language=zh_CN&_t=MiniSecond
-			//	"language": "zh_CN",
-			//	"_t":       strconv.FormatInt(time.Now().UnixMilli(), 10),
-			//}).
-			Get(baseCfg.LoginIndex)
+		resultCh := make(chan result, 1)
+		go func() {
+			resp, err := a.hedgeC.R().
+				SetResponseDoNotParse(true).
+				Get(baseCfg.LoginIndex)
 
-		if err != nil {
-			if errors.Is(err, context.DeadlineExceeded) {
-				timeout++
-				fmt.Println("CSRF 请求超时", timeout, resp.Duration())
-				continue
-			}
-			if errors.Is(err, io.EOF) {
-				fmt.Println(err)
-				time.Sleep(3 * time.Second)
-				continue
-			} else {
-				log.Println("CSRF HTTP 请求失败:", failCount, err)
-				failCount++
-			}
+			defer func(Body io.ReadCloser) {
+				if Body != nil {
+					_ = Body.Close()
+				}
+			}(resp.Body)
 
-			fmt.Printf("\r%d %s\n", failCount, err.Error())
-			time.Sleep(600 * time.Millisecond)
-			continue
-		}
-		if resp.IsStatusFailure() {
-			failCount++
-			if resp.StatusCode() == 404 {
-				fmt.Println("url:", a.Http.BaseURL())
-				fmt.Println("404, url 填的有问题吧，是不是少了 /jwglxt 或者多了")
-				log.Println("404, url 填的有问题吧")
-				time.Sleep(4 * time.Second)
-				continue
-			}
-			if resp.StatusCode() == 403 {
-				fmt.Println("url:", a.Http.BaseURL())
-			}
-			log.Println("CSRF http:", resp.Status())
-			fmt.Println("CSRF http:", resp.Status())
-			time.Sleep(1 * time.Second)
-			continue
-		}
-
-		if resp.IsStatusSuccess() {
-			doc, err := goquery.NewDocumentFromReader(bytes.NewReader(resp.Bytes()))
 			if err != nil {
-				log.Println("CSRF 解析 HTML 失败:", err)
-				time.Sleep(150 * time.Millisecond)
-				continue
-			}
-			if errMsg := strings.TrimSpace(doc.Find("#tips").Text()); errMsg != "" {
-				log.Println(errMsg)
-				fmt.Println(errMsg)
+				if errors.Is(err, context.DeadlineExceeded) {
+					timeout++
+					fmt.Println("CSRF 请求超时", timeout, resp.Duration())
+					resultCh <- result{con: true}
+					return
+				}
+				if errors.Is(err, io.EOF) {
+					fmt.Println(err)
+					time.Sleep(3 * time.Second)
+					resultCh <- result{con: true}
+					return
+				}
+				failCount++
+				log.Println("CSRF HTTP 请求失败:", failCount, err)
+				fmt.Printf("\r%d %s\n", failCount, err)
+				time.Sleep(600 * time.Millisecond)
+				resultCh <- result{con: true}
+				return
 			}
 
-			if doc.Find("#yzmDiv").Text() != "" {
-				yzm = true
+			if resp.IsStatusFailure() {
+				failCount++
+				if resp.StatusCode() == 404 {
+					fmt.Println("url:", a.Http.BaseURL())
+					fmt.Println("404, url 填的有问题吧，是不是少了 /jwglxt 或者多了")
+					log.Println("404, url 填的有问题吧")
+					time.Sleep(4 * time.Second)
+					resultCh <- result{con: true}
+					return
+				}
+				if resp.StatusCode() == 403 {
+					fmt.Println("url:", a.Http.BaseURL())
+				}
+				log.Println("CSRF http:", resp.Status())
+				fmt.Println("CSRF http:", resp.Status())
+				time.Sleep(1 * time.Second)
+				resultCh <- result{con: true}
+				return
 			}
 
-			// 使用 CSS 选择器提取元素属性 "input#csrftoken"
-			csrfToken, exists = doc.Find("input#csrftoken").Attr("value")
-			if exists {
-				return csrfToken, yzm, false
+			if resp.IsStatusSuccess() {
+				tokenizer := html.NewTokenizer(resp.Body)
+				foundCSRF := false
+				var tokenCsrf string
+				for {
+					tokenType := tokenizer.Next()
+					if tokenType == html.ErrorToken {
+						if tokenizer.Err() != io.EOF {
+							log.Println("CSRF 解析 HTML 失败:", tokenizer.Err())
+							fmt.Println("CSRF 解析 HTML 失败:", tokenizer.Err())
+						}
+						break
+					}
+					if tokenType == html.StartTagToken || tokenType == html.SelfClosingTagToken {
+						token := tokenizer.Token()
+						// 查找 csrftoken input
+						if !foundCSRF {
+							if token.Data == "input" {
+								var id, value string
+								for _, attr := range token.Attr {
+									switch attr.Key {
+									case "id":
+										id = attr.Val
+									case "value":
+										value = attr.Val
+									}
+								}
+								if id == "csrftoken" {
+									tokenCsrf = value
+									foundCSRF = true
+								}
+							}
+							continue
+						}
+						// 查找 yzmDiv（但仅在未遇到登录按钮时记录）
+						for _, attr := range token.Attr {
+							if attr.Key == "id" && attr.Val == "yzmDiv" {
+								resultCh <- result{con: false, csrfToken: tokenCsrf, haveYZM: true}
+								return
+							}
+						}
+						// 检查是否为 <button id="dl">
+						if token.Data == "button" {
+							for _, attr := range token.Attr {
+								if attr.Key == "id" && attr.Val == "dl" {
+									resultCh <- result{con: false, csrfToken: tokenCsrf, haveYZM: false}
+									return
+								}
+							}
+						}
+					}
+				}
+				log.Println("未找到 #csrftoken 元素或其 value 属性")
+				fmt.Println("未找到 #csrftoken 元素或其 value 属性")
 			}
-			if utils.UserIsLogin(a.Config.Account, resp.String()) {
-				return "nil", yzm, false
+
+			if resp.StatusCode() == 302 {
+				if strings.Contains(resp.Header().Get("Location"), baseCfg.MENU) {
+					resultCh <- result{con: false, csrfToken: "", isLogin: true}
+					return
+				}
+				fmt.Println(resp.Header().Get("Location"))
+				resultCh <- result{con: false, csrfToken: "", isLogin: true}
+				return
 			}
-			fmt.Println("未找到 #csrftoken 元素或其 value 属性")
-			log.Println("未找到 #csrftoken 元素或其 value 属性")
-			log.Println(resp.String())
+
+			time.Sleep(1 * time.Second)
+			resultCh <- result{con: true}
+		}()
+
+		res := <-resultCh
+		if !res.con {
+			return res.csrfToken, res.haveYZM, res.isLogin
 		}
-
-		if resp.StatusCode() == 302 {
-			if strings.Contains(resp.Header().Get("Location"), baseCfg.MENU) {
-				return "", yzm, true
-			}
-			fmt.Println(resp.Header().Get("Location"))
-			return "", yzm, false
-		}
-		time.Sleep(1 * time.Second)
 		continue
 	}
 }
@@ -368,16 +415,22 @@ func (a *APIClient) getRTK() string {
 				"instanceId": "zfcaptchaLogin",
 				"name":       "zfdun_captcha.js",
 			}).
+			SetResponseDoNotParse(true).
 			Get(baseCfg.CAPTCHA)
+		if resp.Body == nil {
+			continue
+		}
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				time.Sleep(275 * time.Millisecond)
 				fmt.Println("rtk 请求超时", resp.Duration())
+				_ = resp.Body.Close()
 				continue
 			} else {
 				fmt.Println("rtk http:", err)
 				log.Println("rtk http:", err)
 			}
+			_ = resp.Body.Close()
 			time.Sleep(1475 * time.Millisecond)
 			continue
 		}
@@ -387,6 +440,7 @@ func (a *APIClient) getRTK() string {
 			fmt.Println("404, url 填的有问题，是不是少了 /jwglxt")
 			fmt.Println("请填写baseURL，后面的部分如:" + baseCfg.LoginIndex + " 是不必要的")
 			log.Println("404, url 填的有问题")
+			_ = resp.Body.Close()
 			time.Sleep(4 * time.Second)
 			continue
 		}
@@ -394,21 +448,63 @@ func (a *APIClient) getRTK() string {
 		if resp.IsStatusFailure() {
 			fmt.Println("rtk HTTP 错误: 状态码 ", resp.Status())
 			log.Println("rtk HTTP 错误: 状态码 ", resp.Status())
+			_ = resp.Body.Close()
 			time.Sleep(275 * time.Millisecond)
 			continue
 		}
 
-		var re = regexp.MustCompile(`tk:'(.*)',`)
-		matches := re.FindStringSubmatch(resp.String())
-		if len(matches) < 2 {
-			fmt.Println("未找到rtk, url 填的有问题吧")
-			log.Println("未找到rtk, url 填的有问题吧")
+		//var re = regexp.MustCompile(`tk:'(.*)',`)
+		//matches := re.FindStringSubmatch(resp.String())
+		//if len(matches) < 2 {
+		//	fmt.Println("未找到rtk, url 填的有问题吧")
+		//	log.Println("未找到rtk, url 填的有问题吧")
+		//	time.Sleep(4 * time.Second)
+		//} else {
+		//	//log.Println("rtk:", matches[1])
+		//	return matches[1]
+		//}
+		rtk, err := getRTKFromResponse(resp.Body)
+		_ = resp.Body.Close()
+		if err != nil {
+			fmt.Println("rtk:", err)
 			time.Sleep(4 * time.Second)
 		} else {
-			//log.Println("rtk:", matches[1])
-			return matches[1]
+			return rtk
 		}
 	}
+}
+
+// getRTKFromResponse 从 HTTP 响应中流式读取并提取 rtk 值
+func getRTKFromResponse(body io.Reader) (string, error) {
+	// 使用带缓冲的 Reader 按行读取
+	reader := bufio.NewReaderSize(body, 192)
+	prefix := "rtk:'" // 目标字段前缀
+
+	for {
+		line, err := reader.ReadString('\n')
+		if err != nil && err != io.EOF {
+			return "", fmt.Errorf("read error: %w", err)
+		}
+
+		// 在当前行中查找前缀
+		if idx := strings.Index(line, prefix); idx != -1 {
+			start := idx + len(prefix)
+			// 寻找结束单引号
+			end := strings.Index(line[start:], "'")
+			if end == -1 {
+				// 如果跨行，可继续读取直到找到闭合引号（此处简化，通常在同一行）
+				return "", errors.New("rtk value spans multiple lines, not supported")
+			}
+			rtk := line[start : start+end]
+			return rtk, nil
+		}
+
+		if err == io.EOF {
+			break // 已读完所有行仍未找到
+		}
+	}
+
+	return "", errors.New("rtk not found in response")
 }
 
 type captchaData struct {
@@ -662,7 +758,7 @@ func (a *APIClient) postLogin(csrf, t, mm, yzm string) (bool, error) {
 		}
 		if resp.StatusCode() == 302 || stat {
 			//fmt.Println("postLogin", resp.Status())
-			fmt.Println("登录成功")
+			fmt.Println("登录成功✅")
 			// 这个location 并不是很有参考意义
 			log.Println("登录成功 Location:", resp.Header().Get("Location"))
 			return true, nil
@@ -679,10 +775,10 @@ func isLogin(account, html string) (bool, error) {
 	}
 
 	// 检查是否存在 id="tips"
-	// re2 := regexp.MustCompile(`id="tips"`)
-	// if !re2.MatchString(html) {
-	// 	return true, nil
-	// }
+	//re2 := regexp.MustCompile(`id="tips"`)
+	//if !re2.MatchString(html) {
+	//	return true, nil
+	//}
 
 	// 解析HTML
 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(html))
@@ -702,7 +798,6 @@ func isLogin(account, html string) (bool, error) {
 		return false, InputYzmErr
 	}
 
-	// fmt.Printf("UserIsLogin(): %s\n", errMsg)
 	fmt.Println(errMsg)
 	log.Println(errMsg)
 	if strings.Contains(errMsg, "用户名或密码不正确") {

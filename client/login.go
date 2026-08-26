@@ -281,12 +281,6 @@ func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
 				SetResponseDoNotParse(true).
 				Get(baseCfg.LoginIndex)
 
-			defer func(Body io.ReadCloser) {
-				if Body != nil {
-					_ = Body.Close()
-				}
-			}(resp.Body)
-
 			if err != nil {
 				if errors.Is(err, context.DeadlineExceeded) {
 					timeout++
@@ -307,6 +301,11 @@ func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
 				resultCh <- result{con: true}
 				return
 			}
+			defer func(Body io.ReadCloser) {
+				if Body != nil {
+					_ = Body.Close()
+				}
+			}(resp.Body)
 
 			if resp.IsStatusFailure() {
 				failCount++
@@ -385,11 +384,27 @@ func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
 			}
 
 			if resp.StatusCode() == 302 {
-				if strings.Contains(resp.Header().Get("Location"), baseCfg.MENU) {
+				location := resp.Header().Get("Location")
+				if strings.Contains(location, baseCfg.MENU) {
 					resultCh <- result{con: false, csrfToken: "", isLogin: true}
 					return
 				}
-				fmt.Println(resp.Header().Get("Location"))
+				if strings.Contains(location, baseCfg.LoginIndex) {
+					u, _ := url.Parse(a.Http.BaseURL())
+					basePath := strings.Replace(location, baseCfg.LoginIndex, "", 1)
+					if u.Path != basePath {
+						fmt.Println("当前路径:", u.Path)
+						fmt.Println("重定向路径:", location)
+						base := u.Scheme + "://" + u.Host + basePath
+						fmt.Println("修正url:", base)
+						a.Http.SetBaseURL(base)
+						a.Config.BaseURL = base
+						a.Config.WriteConfig()
+						time.Sleep(2 * time.Second)
+						os.Exit(0)
+					}
+				}
+				fmt.Println("302:", location)
 				resultCh <- result{con: false, csrfToken: "", isLogin: true}
 				return
 			}
@@ -417,24 +432,22 @@ func (a *APIClient) getRTK() string {
 			}).
 			SetResponseDoNotParse(true).
 			Get(baseCfg.CAPTCHA)
-		if resp.Body == nil {
-			continue
-		}
+
 		if err != nil {
 			if errors.Is(err, context.DeadlineExceeded) {
 				time.Sleep(275 * time.Millisecond)
 				fmt.Println("rtk 请求超时", resp.Duration())
-				_ = resp.Body.Close()
 				continue
 			} else {
 				fmt.Println("rtk http:", err)
 				log.Println("rtk http:", err)
 			}
-			_ = resp.Body.Close()
 			time.Sleep(1475 * time.Millisecond)
 			continue
 		}
-
+		if resp.Body == nil {
+			continue
+		}
 		if resp.StatusCode() == 404 {
 			fmt.Println(a.Http.BaseURL())
 			fmt.Println("404, url 填的有问题，是不是少了 /jwglxt")
@@ -466,7 +479,7 @@ func (a *APIClient) getRTK() string {
 		rtk, err := getRTKFromResponse(resp.Body)
 		_ = resp.Body.Close()
 		if err != nil {
-			fmt.Println("rtk:", err)
+			fmt.Println("rtk http:", err)
 			time.Sleep(4 * time.Second)
 		} else {
 			return rtk

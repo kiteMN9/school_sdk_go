@@ -1,12 +1,13 @@
 package cas2
 
 import (
-	"school_sdk/config"
+	"school_sdk/client/config"
+	bconfig "school_sdk/config"
 	"testing"
 )
 
 func Test_Login(*testing.T) {
-	cas := NewCas("", "", config.ChromeUA, false)
+	cas := NewCas("", "", bconfig.ChromeUA, false, &config.Data{})
 	cas.Login()
 	//check_code.SaveImgStream(cas.getCaptchaImage(), "./kap_img/", "")
 	cas.GetJwCookie()

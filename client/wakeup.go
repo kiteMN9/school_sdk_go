@@ -164,7 +164,9 @@ func outputWakeupCSV(courses []ChosenDic) {
 		fmt.Printf("创建输出文件失败: %v\n", err)
 		return
 	}
-	defer f.Close()
+	defer func(f *os.File) {
+		_ = f.Close()
+	}(f)
 
 	// 写入 UTF-8 BOM，便于 Excel 直接打开时不乱码
 	_, err = f.Write([]byte{0xEF, 0xBB, 0xBF})
@@ -433,10 +435,10 @@ func (a *APIClient) getSelectedList(xkxnm, xkxqm string) KbList {
 			if errors.Is(err, context.DeadlineExceeded) {
 				fmt.Println("请求超时", resp.Duration())
 				return result
-			} else {
-				fmt.Println("请求发生错误")
-				log.Println(err)
 			}
+
+			fmt.Println("请求发生错误")
+			log.Println(err)
 			continue
 		}
 		if resp.IsStatusFailure() {
@@ -450,15 +452,20 @@ func (a *APIClient) getSelectedList(xkxnm, xkxqm string) KbList {
 		if a.LoginCheck(resp) {
 			log.Printf("已选课程查询: \n%s", resp.String())
 			return result
-		} else {
-			a.ReLogin()
-			continue
 		}
+
+		a.ReLogin()
+		continue
 	}
 }
 
 // outputKbListCSV 将 KbList 课表数据导出为 CSV 文件
 func outputKbListCSV(kbList KbList) {
+	fmt.Println("课表:", len(kbList.KbList), "条")
+	fmt.Println("实践课:", len(kbList.SjkList), "条")
+	if len(kbList.KbList) == 0 {
+		return
+	}
 	outputFile := "课表输出.csv"
 
 	// 准备 CSV 行数据，第一行为表头
@@ -506,7 +513,9 @@ func outputKbListCSV(kbList KbList) {
 		fmt.Printf("创建输出文件失败: %v\n", err)
 		return
 	}
-	defer f.Close()
+	defer func(f *os.File) {
+		_ = f.Close()
+	}(f)
 
 	// 写入 UTF-8 BOM
 	_, err = f.Write([]byte{0xEF, 0xBB, 0xBF})

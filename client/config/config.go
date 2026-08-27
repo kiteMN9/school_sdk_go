@@ -10,8 +10,6 @@ import (
 	cfg "school_sdk/config"
 	"school_sdk/utils"
 
-	"github.com/LiZhiqiang0/go_deep_copy"
-
 	"github.com/AlecAivazis/survey/v2/terminal"
 )
 
@@ -24,12 +22,14 @@ type Data struct {
 	Timeout   string `json:"timeout"`
 	Want      string `json:"want"`
 	//Verify    string `json:"verify"`
-	ExistVerify  bool   `json:"verify" default:"true"`
-	CasLogin     bool   `json:"casLogin" default:"false"`
-	UserAgent    string `json:"ua"`
-	PerInfo      bool   `json:"perInfo"`
-	Hedging      bool   `json:"hedging"`
-	HedgingDelay string `json:"hedgingDelay"`
+	ExistVerify  bool     `json:"verify" default:"true"`
+	CasLogin     bool     `json:"casLogin" default:"false"`
+	UserAgent    string   `json:"ua"`
+	PerInfo      bool     `json:"perInfo"`
+	Hedging      bool     `json:"hedging"`
+	HedgingDelay string   `json:"hedgingDelay"`
+	TicketJWT    string   `json:"ticketJWT"`
+	Routes       []string `json:"routes,omitzero"`
 }
 
 func (c *Data) WriteConfig() {
@@ -58,6 +58,7 @@ func initConfig(filename string) *Data {
 		PerInfo:      true,
 		Hedging:      false,
 		HedgingDelay: "16s",
+		Routes:       []string{},
 	}
 	initialData.WriteConfig()
 	initialData.SetConfigUserInfo(nil)
@@ -76,9 +77,12 @@ func ReadConfig(filename string) *Data {
 	}
 
 	config := Data{
-		filename:    filename,
-		ExistVerify: true,
-		PerInfo:     true,
+		filename:     filename,
+		Timeout:      "31s",
+		ExistVerify:  true,
+		PerInfo:      true,
+		HedgingDelay: "16s",
+		Routes:       []string{},
 	}
 	err = json.Unmarshal(byteValue, &config)
 	if err != nil {
@@ -90,22 +94,23 @@ func ReadConfig(filename string) *Data {
 }
 
 func (c *Data) SetConfigUserInfo(config *Data) {
-	var Account, Passwd string
+	var Account, Passwd, newAccount, newPasswd string
 	var err error
 	if config == nil {
-		config = &Data{}
-		if err := go_deep_copy.DeepCopy(c, config); err != nil {
-			panic(err)
-		}
+		newAccount = c.Account
+		newPasswd = c.Passwd
+	} else {
+		newAccount = config.Account
+		newPasswd = config.Passwd
 	}
-	fmt.Println("当前用户:", config.Account)
+	fmt.Println("当前用户:", newAccount)
 	for {
 		Account, err = utils.UserInputWithSigInt("  账号:")
 		if err == io.EOF || errors.Is(err, terminal.InterruptErr) {
 			os.Exit(0)
 		}
-		if Account == "" && config.Account != "account" {
-			Account = config.Account
+		if Account == "" && newAccount != "account" {
+			Account = newAccount
 			fmt.Printf("账号保持(%s)不变\n", Account)
 		} else if Account == "account" {
 			fmt.Println("你是认真的吗？")
@@ -116,7 +121,7 @@ func (c *Data) SetConfigUserInfo(config *Data) {
 		break
 	}
 
-	fmt.Printf("当前密码:(%s)\n", config.Passwd)
+	fmt.Printf("当前密码:(%s)\n", newPasswd)
 
 	Passwd, err = utils.UserInputWithSigInt("  密码:")
 	if err != nil {

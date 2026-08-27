@@ -1,4 +1,4 @@
-package client
+package internal
 
 import (
 	"io"
@@ -9,7 +9,7 @@ import (
 )
 
 // Create Brotli decompress logic
-func decompressBrotli(r io.ReadCloser) (io.ReadCloser, error) {
+func DecompressBrotli(r io.ReadCloser) (io.ReadCloser, error) {
 	br := &brotliReader{s: r, r: brotli.NewReader(r)}
 	return br, nil
 }

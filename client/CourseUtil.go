@@ -79,7 +79,6 @@ func (a *APIClient) chooseCourseWithXXXXX(cfg *APIConfig, co *CustomCourseDic, s
 }
 
 func zf9ChooseResultParse(result ChooseCourseResult) string {
-	// 目前解决正方选课走后门导致自动选课异常的方法
 	// {"msg":"0,394E58D5537473F8E065FCFCFE1D0407,130,","flag":"-1"}
 	// fzjxb,jxb_id,yxzrs,blyxrs
 	if result.Flag != "-1" {
@@ -242,13 +241,13 @@ func (s *SafeCustomCourseSlice) courseDetail2custom(list []CourseDetail) {
 
 // removePrefix 去掉单个字符串中的 "数字/" 前缀
 func removePrefix(s string) string {
-	idx := strings.Index(s, "/")
-	if idx == -1 {
+	_, after, ok := strings.Cut(s, "/")
+	if !ok {
 		// 没有斜杠，返回原字符串（或根据需求处理）
 		return s
 	}
 	// 返回第一个斜杠之后的部分
-	return s[idx+1:]
+	return after
 }
 
 // processLine 处理可能包含多个条目的行（分号分隔）
@@ -622,7 +621,7 @@ func (a *APIClient) HandChooseCourse(cfg *APIConfig, cust *SafeCustomCourseSlice
 		log.Println("选课失败: ", chooseResult.Msg)
 		return false, chooseResult
 	} else if chooseResult.Flag == "2" {
-		fmt.Println("上课时间冲突且可查看冲突: ", chooseResult.Msg)
+		fmt.Println("上课时间冲突且可查看冲突: ", chooseResult.Msg, baseCfg.Conflict)
 		log.Println("选课失败2: ", chooseResult.Msg, baseCfg.Conflict)
 		return false, chooseResult
 	} else if chooseResult.Flag == "-5" {
@@ -699,6 +698,7 @@ func printSelectedList(selectedList []ChosenDic) {
 		//}
 	}
 	fmt.Println("---------------------------------------------------")
+	fmt.Println("总课程数:", len(selectedList))
 }
 
 func (a *APIClient) getAlreadySelectedTK(cfg *APIConfig) []ChosenDic {
@@ -822,6 +822,58 @@ func (a *APIClient) cookie() {
 	for i, c := range cookies {
 		parts[i] = c.Name + "=" + c.Value
 	}
-	cookieStr := strings.Join(parts, "; ")
-	fmt.Println(cookieStr)
+	if cookieStr := strings.Join(parts, "; "); cookieStr != "" {
+		fmt.Println(cookieStr)
+	}
+}
+
+func GetUserInputYearTerm(year string, termI int) (string, int) {
+	var term = strconv.Itoa(termI)
+	var line = ""
+
+	var termInt int
+
+	fmt.Printf("\033[1;36m%2s\033[0m 年 \033[1;36m%s\033[0m 学期\n", year, term)
+	for {
+		var err error
+		line, err = utils.UserInputWithSigInt(fmt.Sprintf("年份(%s):", year))
+		if err != nil {
+			return "0", 0
+		}
+		if line != "" && len(line) == 4 {
+			year = line[0:4]
+			break
+		}
+		if len(line) == 0 {
+			break
+		}
+	}
+	var term_ string
+	var output string
+	if term == "1" {
+		output = "学期(\u001B[1;36m1\u001B[0m,2,3):"
+	} else {
+		output = "学期(1,\u001B[1;36m2\u001B[0m,3):"
+	}
+	for {
+		var err error
+		line, err = utils.UserInputWithSigInt(output)
+		if err != nil {
+			return "0", 0
+		}
+		if line != "" && len(line) == 1 {
+			term_ = line[0:1]
+		} else {
+			term_ = term
+		}
+		var err4 error
+		termInt, err4 = strconv.Atoi(term_)
+		if err4 != nil {
+			log.Println(err4)
+		}
+		if termInt >= 1 && termInt <= 3 {
+			break
+		}
+	}
+	return year, termInt
 }

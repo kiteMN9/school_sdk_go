@@ -8,6 +8,7 @@ import (
 	"net/http"
 	baseCfg "school_sdk/config"
 	"school_sdk/utils"
+	"strconv"
 	"strings"
 	"time"
 
@@ -47,7 +48,7 @@ func (a *APIClient) CheckSession2(ctx context.Context) bool {
 		SetQueryParams(map[string]string{
 			"xt":        "jw",
 			"localeKey": "zh_CN",
-			"_":         fmt.Sprint(time.Now().UnixMilli()),
+			"_":         strconv.FormatInt(time.Now().UnixMilli(), 10),
 			"gnmkdm":    "index",
 		}).
 		SetContext(ctx).
@@ -72,6 +73,7 @@ func (a *APIClient) CheckSession2(ctx context.Context) bool {
 	return a.ReLogin()
 }
 
+// LoginCheck false 触发 ReLogin
 func (a *APIClient) LoginCheck(resp *resty.Response) bool {
 	if resp == nil {
 		return true
@@ -84,12 +86,15 @@ func (a *APIClient) LoginCheck(resp *resty.Response) bool {
 		time.Sleep(4 * time.Second)
 		return true
 	}
-	return !a.CheckLogout302(resp) && utils.UserIsLogin(a.Config.Account, resp.String())
+	if !a.CheckLogout302(resp) {
+		return true
+	}
+	return utils.UserIsLogin(a.Config.Account, resp.String())
 }
 
 func (a *APIClient) CheckLogout302(resp *resty.Response) bool {
 	if resp == nil {
-		return false
+		return false // 登录状态ok
 	}
 	if resp.StatusCode() == http.StatusFound {
 		location := resp.Header().Get("Location")
@@ -99,10 +104,10 @@ func (a *APIClient) CheckLogout302(resp *resty.Response) bool {
 		}
 		if strings.Contains(location, baseCfg.LoginIndex) || strings.Contains(location, a.Http.BaseURL()) {
 			//println("Logout302")
-			return true
+			return true // 被踢了
 		}
 
-		log.Println("CheckLogout302: StatusCode=302 header:", resp.Header())
+		log.Println("CheckLogout302: StatusCode=302 header", resp.Header())
 		fmt.Println("意料之外的错误！ StatusCode=302", resp.Header())
 	}
 	return false

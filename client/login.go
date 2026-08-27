@@ -870,15 +870,22 @@ func (a *APIClient) cas2LoginCtl() bool {
 
 func (a *APIClient) ssoLogin() string {
 	log.Println("ssoLogin=======")
-	for range 8 {
+	for range 10 {
 		resp, err := a.Http.R().
 			SetHeader("Referer", "https://portal.ycit.edu.cn/main.html").
-			SetRetryCount(1).
+			SetRetryCount(0).
 			Get("https://jwglxt.ycit.edu.cn/sso/hnyyxyiotlogin")
 		if err != nil {
 			if errors.Is(err, io.EOF) {
 				fmt.Println(err)
 				time.Sleep(2 * time.Second)
+				continue
+			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				fmt.Println("ssoLogin:", err, resp.Duration())
+				log.Println("ssoLogin:", err, resp.Duration())
+				a.cookie()
+				time.Sleep(1 * time.Second)
 				continue
 			}
 			fmt.Println("ssoLogin:", err)
@@ -896,12 +903,18 @@ func (a *APIClient) ssoLogin() string {
 		log.Println(location) // https://cas2.ycit.edu.cn/cas/login?service=http://jwglxt.ycit.edu.cn/sso/hnyyxyiotlogin?targetUrl={base64}aHR0cDovL2p3Z2x4dC55Y2l0LmVkdS5jbi9zc28vc3NvL2luZGV4LmpzcA==
 		return location
 	}
+	fmt.Println("===============================")
+	fmt.Println("config routes:", a.Config.Routes)
+	fmt.Println("current cookie:")
+	a.cookie()
+	fmt.Println("===============================")
 	return ""
 }
 
 func (a *APIClient) ssoTicketLogin(location string) bool {
 	if location == "" {
-		log.Fatal("GetJwCookie2 location:", location)
+		log.Println("GetJwCookie2 location:", location)
+		return false
 	}
 	var location2 string
 	for range 8 {

@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -32,9 +33,8 @@ func (a *APIClient) getScoreRaw(year string, term int) []Score {
 				"queryModel.sortOrder":   "asc",
 				"time":                   "0", //0,1
 			}).
-			SetTimeout(12 * time.Second).
-			SetResult(&score).
 			Post(baseCfg.SCORE)
+		//Post(baseCfg.PersonalInfo)
 		if err != nil {
 			if errors.Is(err, context.Canceled) {
 				fmt.Println("查成绩请求取消")
@@ -67,6 +67,11 @@ func (a *APIClient) getScoreRaw(year string, term int) []Score {
 			continue
 		}
 
+		if err := json.Unmarshal(resp.Bytes(), &score); err != nil {
+			fmt.Println(err)
+			log.Println(err, resp.String())
+			return nil
+		}
 		return score.Items
 	}
 	return score.Items
@@ -115,11 +120,9 @@ const (
 	Reset      = "\033[0m"
 	BoldCyan   = "\033[1;36m"
 	BoldYellow = "\033[1;33m"
-
 	//RedText     = "\033[31m"
 	//GreenText   = "\033[32m"
 	//RedBgText   = "\033[31;40m" // 红色文字，黑色背景
-
 	BrightRedBg = "\033[1;91m"  // 红色文字，黑色背景
 	GreenBgText = "\033[32;40m" // 绿色文字，黑色背景
 )
@@ -179,6 +182,7 @@ func printScore(d Score, bfcj int) bool {
 func (a *APIClient) GetScore(year string, term int) {
 	//fmt.Println("get score")
 	if term == 0 {
+		formatPrintScoreAll(a.getScoreRaw("", 0))
 		return
 	}
 	if len(year) != 4 || (term != 1 && term != 2 && term != 3) {
@@ -187,13 +191,11 @@ func (a *APIClient) GetScore(year string, term int) {
 		time.Sleep(1 * time.Second)
 		return
 	}
-	items := a.getScoreRaw(year, term)
-	//fmt.Println(items)
-	formatPrintScoreAll(items)
+	formatPrintScoreAll(a.getScoreRaw(year, term))
 }
 
 func (a *APIClient) GetScoreWithInput() {
-	year, termInt := GetUserInputYearTerm(GetSuggestYearTerm())
+	year, termInt := GetUserInputYearTermScore(GetSuggestYearTerm())
 	a.GetScore(year, termInt)
 }
 
@@ -213,16 +215,16 @@ func GetSuggestYearTerm() (string, int) {
 	return year, term
 }
 
-func GetUserInputYearTerm(year string, termI int) (string, int) {
+func GetUserInputYearTermScore(year string, termI int) (string, int) {
 	var term = strconv.Itoa(termI)
 	var line = ""
 
 	var termInt int
 
-	fmt.Printf("\033[1;36m%2s\033[0m 年 \033[1;36m%2s\033[0m 学期\n", year, term)
+	fmt.Printf("\033[1;36m%2s\033[0m 年 \033[1;36m%s\033[0m 学期\n", year, term)
 	for {
 		var err error
-		line, err = utils.UserInputWithSigInt(fmt.Sprintf("年份(%s):", year))
+		line, err = utils.UserInputWithSigInt(fmt.Sprintf("年份(%s|all):", year))
 		if err != nil {
 			return "0", 0
 		}
@@ -232,6 +234,9 @@ func GetUserInputYearTerm(year string, termI int) (string, int) {
 		}
 		if len(line) == 0 {
 			break
+		}
+		if line == "all" {
+			return "", 0
 		}
 	}
 	var term_ string

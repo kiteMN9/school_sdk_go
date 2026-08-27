@@ -166,8 +166,11 @@ func (c *Client) GetJwCookie2(location string) string {
 			continue
 		}
 		if resp.StatusCode() != 302 {
-			fmt.Println("GetJwCookie2 resp:", resp.Status())
-			log.Println("GetJwCookie2 resp:", resp.Status())
+			fmt.Println("GetJwCookie2 status:", resp.Status()) // 401 何意味
+			log.Println("GetJwCookie2 status:", resp.Status())
+			if resp.StatusCode() == 401 {
+				fmt.Println("账户可能被锁？")
+			}
 			time.Sleep(2 * time.Second)
 			continue
 		}
@@ -204,6 +207,9 @@ type netCheckResp struct {
 
 func (c *Client) netCheckIdToken() bool {
 	if !checkHeader(c.portalHttp, "x-id-token") {
+		return false
+	}
+	if c.needLogin() {
 		return false
 	}
 	var result netCheckResp

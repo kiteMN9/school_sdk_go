@@ -11,6 +11,7 @@ import (
 	"school_sdk/client/cas2"
 	"school_sdk/client/config"
 	"school_sdk/client/hedge"
+	"school_sdk/client/internal"
 	baseCfg "school_sdk/config"
 	"strings"
 	"time"
@@ -54,6 +55,7 @@ func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) (*
 	client := resty.New().
 		SetRedirectPolicy(resty.RedirectNoPolicy()).
 		SetBaseURL(baseURL)
+	client.Client().Timeout = 50 * time.Second
 
 	if os.Getenv("proxy") == "1" {
 		client.SetProxy("http://127.0.0.1:8866")
@@ -73,15 +75,14 @@ func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) (*
 	client.SetRetryCount(3).
 		AddRetryConditions(resty.RetryConditionStatus5XX)
 
-	refer, err := JoinURL(baseURL, baseCfg.LoginIndex)
-	if err != nil {
-		log.Fatal(err)
-	}
-	client.SetHeader("Referer", refer)
-	client.SetHeader("Accept", "*/*")
+	//refer, err := JoinURL(baseURL, baseCfg.LoginIndex)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//client.SetHeader("Referer", refer)
 	client.SetHeader("user-agent", fCfg.UserAgent)
 
-	client.AddContentDecompresser("br", decompressBrotli)
+	client.AddContentDecompresser("br", internal.DecompressBrotli)
 
 	if strings.HasPrefix(fCfg.BaseURL, "https://") {
 		if transport, _ := client.HTTPTransport(); transport != nil {
@@ -103,13 +104,13 @@ func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) (*
 		hedgedClient := &http.Client{
 			Transport: ht,
 			Jar:       client.Client().Jar,
+			Timeout:   50 * time.Second,
 		}
 		htc := resty.NewWithClient(hedgedClient).SetBaseURL(baseURL).
 			SetTimeout(timeout).SetRedirectPolicy(resty.RedirectNoPolicy())
-		htc.SetHeader("Referer", refer)
-		htc.SetHeader("Accept", "*/*")
+		//htc.SetHeader("Referer", refer)
 		htc.SetHeader("user-agent", fCfg.UserAgent)
-		htc.AddContentDecompresser("br", decompressBrotli)
+		htc.AddContentDecompresser("br", internal.DecompressBrotli)
 		return client, htc
 	}
 	return client, client
@@ -131,18 +132,25 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 		routes := []string{
 			//"018f9ff65252ca4f51865070844ae0be", // 慢且cas登录失败
 			//"34ff17f478ebaa7e4063c9d5a95901d0", // 慢且cas登录失败
-			"425b918000ed5b18d10afb85fbbf8ec7", // 快
+			//"425b918000ed5b18d10afb85fbbf8ec7", // 快
 			//"8ed16c15842922decba77aa1ed63b61f", // 快❌
-			"c80e782f5a3340e86274809ce311b6b4", // 快
-		}
-		selected := routes[rand.Intn(len(routes))]
+			//"c80e782f5a3340e86274809ce311b6b4", // 快
 
-		cookie := &http.Cookie{ // 过 nginx有这个
-			Name:  "route",
-			Value: selected, // 手动设置成一样的会有非常明显的挤号问题
+			"c8aa7be12690eaa40200741aded427f8", // 55.3428ms cas✅
+			"8ed16c15842922decba77aa1ed63b61f", // 52.1706ms cas✅
 		}
-		//log.Println(selected)
-		client.CookieJar().SetCookies(u, []*http.Cookie{cookie})
+		if len(cfg.Routes) != 0 {
+			routes = cfg.Routes
+		}
+		if len(cfg.Routes) != 0 {
+			selected := routes[rand.Intn(len(routes))]
+			cookie := &http.Cookie{ // 过 nginx有这个
+				Name:  "route",
+				Value: selected, // 手动设置成一样的会有非常明显的挤号问题
+			}
+			//log.Println(selected)
+			client.CookieJar().SetCookies(u, []*http.Cookie{cookie})
+		}
 	}
 
 	//transport, _ := client.HTTPTransport()
@@ -162,7 +170,7 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 	}
 
 	if isCas2 || WX {
-		apiClient.cas2Client = cas2.NewCas(cfg.Account, cfg.CasPasswd, cfg.UserAgent, WX)
+		apiClient.cas2Client = cas2.NewCas(cfg.Account, cfg.CasPasswd, cfg.UserAgent, WX, cfg)
 		return apiClient
 	}
 	return apiClient

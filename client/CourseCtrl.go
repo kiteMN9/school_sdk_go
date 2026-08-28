@@ -239,12 +239,12 @@ func (a *APIClient) Other(cfg *APIConfig) {
 		fmt.Printf(`
 ********************************
 1.课程模式切换 %d
-2.邮件功能(SMTP) %t
+2.邮件功能📧(SMTP) %t
 3.设置余量 %t
 4.查询成绩
 5.自定义已选课程查询
 6.设置timeout (%.1fs)
-mail.测试邮件功能
+mail.测试邮件功能 📧
 gpa.查看GPA
 color.色彩测试
 en,zh.中英文切换
@@ -320,7 +320,7 @@ cookie.
 		case "mail":
 			if cfg.smtpConfig.Enable {
 				smtpContent := "<b>%s\n%s</b>"
-				fmt.Println("Send mail")
+				fmt.Println("Send mail 📧")
 				utils.SendMail(cfg.smtpConfig, "选课提醒测试", fmt.Sprintf(smtpContent, "*-选课成功✅?-*-", "游戏电竞课"))
 			}
 		case "gpa":

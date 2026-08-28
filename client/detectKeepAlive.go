@@ -96,7 +96,7 @@ func (a *APIClient) detectTime(ctx context.Context) bool {
 		}
 		fmt.Println(err)
 	}
-	fmt.Println(resp.Duration())
+	fmt.Println("\n" + resp.Duration().String())
 	log.Println(resp.Duration())
 
 	if !a.CheckLogout302(resp) && utils.UserIsLogin(a.Config.Account, resp.String()) {

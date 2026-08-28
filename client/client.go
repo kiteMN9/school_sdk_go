@@ -72,6 +72,7 @@ func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) (*
 		timeout = 4 * time.Second
 	}
 	client.SetTimeout(timeout) // 整个请求的超时时间
+	client.SetRateLimiter(resty.NewRateLimitSlidingWindow(10, 4*time.Second))
 	client.SetRetryCount(3).
 		AddRetryConditions(resty.RetryConditionStatus5XX)
 
@@ -108,6 +109,7 @@ func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) (*
 		}
 		htc := resty.NewWithClient(hedgedClient).SetBaseURL(baseURL).
 			SetTimeout(timeout).SetRedirectPolicy(resty.RedirectNoPolicy())
+		client.SetRateLimiter(resty.NewRateLimitSlidingWindow(10, 4*time.Second))
 		//htc.SetHeader("Referer", refer)
 		htc.SetHeader("user-agent", fCfg.UserAgent)
 		htc.AddContentDecompresser("br", internal.DecompressBrotli)

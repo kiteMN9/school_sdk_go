@@ -46,6 +46,7 @@ func NewCas(account, password, UA string, wx bool, fCfg *config.Data) *Client {
 	client.AddContentDecompresser("br", internal.DecompressBrotli)
 
 	client.SetRetryCount(1).AddRetryConditions(resty.RetryConditionStatus5XX)
+	client.SetRateLimiter(resty.NewRateLimitSlidingWindow(10, 4*time.Second))
 
 	if os.Getenv("trace") == "1" {
 		client.SetTrace(true)
@@ -124,7 +125,11 @@ func (c *Client) Login() bool {
 	return false
 }
 
-func extractLoginParams(body io.Reader) (execution, failN string, err error) {
+func extractLoginParams(body io.ReadCloser) (execution, failN string, err error) {
+	if body == nil {
+		return "", "", errors.New("body is nil")
+	}
+	defer body.Close()
 	tokenizer := html.NewTokenizer(body)
 
 	for {
@@ -164,6 +169,8 @@ func extractLoginParams(body io.Reader) (execution, failN string, err error) {
 			if execution != "" && failN != "" {
 				return execution, failN, nil
 			}
+		default:
+			continue
 		}
 	}
 }
@@ -193,7 +200,6 @@ func (c *Client) getHtml() string {
 			continue
 		}
 		execution, failN, parseErr := extractLoginParams(resp.Body)
-		resp.Body.Close() // 注意：提前 return 前会关闭
 		if parseErr != nil {
 			fmt.Println(parseErr)
 			continue

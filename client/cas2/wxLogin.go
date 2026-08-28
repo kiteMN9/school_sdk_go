@@ -23,6 +23,7 @@ func NewCasWX(account, password string) *Client {
 		//SetUserAgent(config.ChromeUA).
 		SetHeader("user-agent", config.ChromeUA).
 		SetRedirectPolicy(resty.RedirectNoPolicy())
+	client.SetRateLimiter(resty.NewRateLimitSlidingWindow(10, 4*time.Second))
 	//client.SetProxyURL("http://127.0.0.1:8866")
 
 	hash := md5.Sum([]byte(account + "salt354waragthaswrg"))

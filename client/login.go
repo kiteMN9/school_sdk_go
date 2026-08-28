@@ -446,6 +446,8 @@ func (a *APIClient) getRTK() string {
 			continue
 		}
 		if resp.Body == nil {
+			log.Println("rtk: resp.Body == nil")
+			fmt.Println("rtk: resp.Body == nil")
 			continue
 		}
 		if resp.StatusCode() == 404 {

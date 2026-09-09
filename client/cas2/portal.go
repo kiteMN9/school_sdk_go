@@ -1,7 +1,7 @@
 package cas2
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"math/rand/v2"
@@ -143,6 +143,7 @@ func (c *Client) GetJwCookie() bool {
 
 func (c *Client) GetJwCookie2(location string) string {
 	log.Println("GetJwCookie2=======")
+	fmt.Println("sso cas2 ticket")
 	if c.needLogin() {
 		c.Login()
 	}
@@ -170,6 +171,14 @@ func (c *Client) GetJwCookie2(location string) string {
 			log.Println("GetJwCookie2 status:", resp.Status())
 			if resp.StatusCode() == 401 {
 				fmt.Println("账户可能被锁？")
+				time.Sleep(3 * time.Second)
+				c.Login()
+				continue
+			}
+			if resp.StatusCode() == 200 {
+				if strings.Contains(resp.String(), "不允许使用CAS来认证您访问的目标应用") {
+					fmt.Println("不允许使用CAS来认证您访问的目标应用")
+				}
 			}
 			time.Sleep(2 * time.Second)
 			continue
@@ -180,7 +189,9 @@ func (c *Client) GetJwCookie2(location string) string {
 			log.Println("GetJwCookie2 req location:", location)
 			continue
 		}
-		location1 = strings.Replace(location1, "http://", "https://", -1)
+		if strings.HasPrefix(c.fCfg.BaseURL, "https://") && strings.HasPrefix(location1, "http://") {
+			return strings.Replace(location1, "http://", "https://", -1)
+		}
 		//log.Println("GetJwCookie2 location1:", location1)
 		return location1
 	}

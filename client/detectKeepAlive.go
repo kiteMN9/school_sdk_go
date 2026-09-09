@@ -77,12 +77,32 @@ func (a *APIClient) detectKeepAliveTime() {
 	// c80e782f5a3340e86274809ce311b6b4 快 80.198ms
 }
 
+func (a *APIClient) detectTime0() bool {
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, os.Interrupt)
+	defer close(done)
+	go func() {
+		select {
+		case <-done:
+		case <-sigCh:
+			cancel()
+			fmt.Println("请求已取消")
+		}
+		signal.Stop(sigCh)
+		close(sigCh)
+	}()
+	return a.detectTime(ctx)
+}
+
 func (a *APIClient) detectTime(ctx context.Context) bool {
 	resp, err := a.Http.R().
 		SetRetryCount(0).
 		SetContext(ctx).
 		SetTimeout(11 * time.Second).
 		//SetQueryParam("dlztxxtj_id", "").
+		SetTrace(true).
 		Get(baseCfg.LoginStatus)
 
 	if err != nil {
@@ -96,7 +116,7 @@ func (a *APIClient) detectTime(ctx context.Context) bool {
 		}
 		fmt.Println(err)
 	}
-	fmt.Println("\n" + resp.Duration().String())
+	fmt.Println("\n"+resp.Request.TraceInfo().String(), "\n"+resp.Duration().String())
 	log.Println(resp.Duration())
 
 	if !a.CheckLogout302(resp) && utils.UserIsLogin(a.Config.Account, resp.String()) {

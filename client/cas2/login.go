@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http/cookiejar"
+	"net/http"
 	"net/url"
 	"os"
 	"school_sdk/client/cas2/utils"
@@ -39,10 +39,21 @@ func NewCas(account, password, UA string, wx bool, fCfg *config.Data) *Client {
 	if UA == "" {
 		UA = bcfg.EdgeUA
 	}
-	client := resty.New()
+	client := resty.NewWithTransportSettings(&resty.TransportSettings{
+		IdleConnTimeout:       68 * time.Second,
+		ResponseHeaderTimeout: 31 * time.Second,
+		MaxIdleConnsPerHost:   8,
+	})
 	client.SetBaseURL("https://cas2.ycit.edu.cn/").
 		SetHeader("user-agent", UA).
-		SetRedirectPolicy(resty.RedirectNoPolicy())
+		SetRedirectPolicy(resty.RedirectPolicyFunc(func(req *http.Request, via []*http.Request) error {
+			if req.Response != nil {
+				if req.Response.StatusCode == http.StatusMovedPermanently {
+					return nil
+				}
+			}
+			return http.ErrUseLastResponse
+		}))
 	client.AddContentDecompresser("br", internal.DecompressBrotli)
 
 	client.SetRetryCount(1).AddRetryConditions(resty.RetryConditionStatus5XX)
@@ -83,6 +94,8 @@ func NewCas(account, password, UA string, wx bool, fCfg *config.Data) *Client {
 				fCfg:             fCfg,
 			}
 		}
+		fCfg.TicketJWT = ""
+		fCfg.WriteConfig()
 	}
 
 	hash := md5.Sum([]byte(account + "salt354waragthaswrg"))
@@ -120,8 +133,8 @@ func (c *Client) Login() bool {
 	//c.LoggedIn = false
 	fmt.Println("清空cookie")
 	log.Println("清空cookie")
-	jar, _ := cookiejar.New(nil)
-	c.http.SetCookieJar(jar)
+	u, _ := url.Parse(c.http.BaseURL())
+	c.http.CookieJar().SetCookies(u, []*http.Cookie{})
 	return false
 }
 
@@ -129,8 +142,10 @@ func extractLoginParams(body io.ReadCloser) (execution, failN string, err error)
 	if body == nil {
 		return "", "", errors.New("body is nil")
 	}
-	defer body.Close()
-	tokenizer := html.NewTokenizer(body)
+	defer func(body io.ReadCloser) {
+		_ = body.Close()
+	}(body)
+	tokenizer := html.NewTokenizer(io.LimitReader(body, 34000))
 
 	for {
 		tt := tokenizer.Next()
@@ -199,19 +214,24 @@ func (c *Client) getHtml() string {
 			time.Sleep(1 * time.Second)
 			continue
 		}
-		execution, failN, parseErr := extractLoginParams(resp.Body)
-		if parseErr != nil {
-			fmt.Println(parseErr)
-			continue
-		}
+		if resp.IsStatusSuccess() {
+			execution, failN, parseErr := extractLoginParams(resp.Body)
+			if parseErr != nil {
+				fmt.Println(parseErr)
+				continue
+			}
 
-		if failN != "-1" && failN != "0" {
-			fmt.Println("failN:", failN, "，有一定失败次数")
-			time.Sleep(2 * time.Second)
+			if failN != "-1" && failN != "0" {
+				fmt.Println("failN:", failN, "，有一定失败次数")
+				time.Sleep(2 * time.Second)
+			}
+			if execution != "" {
+				//fmt.Println(time.Since(start))
+				return execution
+			}
 		}
-		if execution != "" {
-			//fmt.Println(time.Since(start))
-			return execution
+		if resp.Body != nil {
+			_ = resp.Body.Close()
 		}
 		// 如果没有拿到 execution，继续循环
 		time.Sleep(1 * time.Second)
@@ -316,7 +336,8 @@ func (c *Client) postLogin(encryptResult, execution string) bool {
 		case 302:
 			location := resp.Header().Get("Location")
 			if location == "" {
-				log.Fatal("location is null")
+				log.Println("cas2 postLogin 302 location is null")
+				return false
 			}
 
 			// 解析 location
@@ -327,18 +348,7 @@ func (c *Client) postLogin(encryptResult, execution string) bool {
 			if ticketJWT == "" {
 				log.Fatal("ticketJWT is null")
 			}
-
-			fmt.Println("cas2登录成功")
-			fmt.Println("====点击下方连接可访问门户=============")
-			fmt.Println(location)
-			fmt.Println("====点击上方连接可访问门户=============")
-
-			log.Println("====点击下方连接可访问门户==============")
-			log.Println("\n", location)
-			log.Println("====点击上方连接可访问门户==============")
-
 			//fmt.Println("ticketJWT:", ticketJWT)
-
 			// 从 ticketJWT 提取 idToken 作为x-id-token
 			// ticket分成三段，中间的base64解码后得到json里的idToken是结果
 			var idToken string
@@ -350,6 +360,15 @@ func (c *Client) postLogin(encryptResult, execution string) bool {
 				log.Println("ticket解析失败:", err1)
 				return false
 			}
+			fmt.Println("cas2登录成功✅")
+			fmt.Println("====点击下方连接可访问门户=============")
+			fmt.Println(location)
+			fmt.Println("====点击上方连接可访问门户=============")
+
+			log.Println("====点击下方连接可访问门户==============")
+			log.Println("\n", location)
+			log.Println("====点击上方连接可访问门户==============")
+
 			// portal header
 			c.portalHttp.SetHeader("x-id-token", idToken)
 			c.portalHttp.SetHeader("x-device-info", "PC")
@@ -367,7 +386,7 @@ func (c *Client) postLogin(encryptResult, execution string) bool {
 				time.Sleep(time.Second * 12)
 			}
 		case 401:
-			fmt.Println("账户或密码错误？")
+			fmt.Println("cas2 账户或密码错误 401")
 			time.Sleep(3 * time.Second)
 			panic("账户或密码错误")
 		case 500:

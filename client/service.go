@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	baseCfg "school_sdk/config"
 	"school_sdk/utils"
 	"strconv"
@@ -111,4 +112,16 @@ func (a *APIClient) CheckLogout302(resp *resty.Response) bool {
 		fmt.Println("意料之外的错误！ StatusCode=302", resp.Header())
 	}
 	return false
+}
+
+func (a *APIClient) cookie() {
+	targetURL, _ := url.Parse(a.Http.BaseURL())
+	cookies := a.Http.CookieJar().Cookies(targetURL)
+	parts := make([]string, len(cookies))
+	for i, c := range cookies {
+		parts[i] = c.Name + "=" + c.Value
+	}
+	if cookieStr := strings.Join(parts, "; "); cookieStr != "" {
+		fmt.Println(cookieStr)
+	}
 }

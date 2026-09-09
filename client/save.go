@@ -20,7 +20,7 @@ func (a *APIClient) save(cfg *APIConfig) {
 		if ctx.Err() != nil {
 			return
 		}
-		a.getCourseListPre(ctx, cfg, cfg.xkkz_id, cfg.xszxzt, true)
+		a.getCourseListPre(ctx, cfg, true)
 	}()
 	select {
 	case <-sigCh:

@@ -7,9 +7,9 @@ import (
 	"io"
 	"log"
 	"math/rand"
-	"net/url"
 	"os"
 	"os/signal"
+	"school_sdk/client/config"
 	"school_sdk/utils"
 	"school_sdk/utils/color"
 	"strconv"
@@ -23,22 +23,26 @@ import (
 )
 
 func (a *APIClient) userSetMode(cfg *APIConfig) string {
+	//var code string
+	// for {
+	// 8.【jh】交换课程(建设中)
 	fmt.Printf(`
 ********************************
 功能代码如下:  %s%s%s
 ---------------------
-[1;36m1[0m.选课
+[1;36m1[0m.选课🚀
 2,yxkc.已选课程查询
 3,tk.退课
-[1;36m4[0m.自动贪婪选课
-[1;36m5[0m.自动单次选课
-6,sx.刷新愿望清单
-7,rf.重新获取参数
-[1;36m9[0m.设定开始时间
+[1;36m4[0m.自动贪婪选课🚀
+[1;36m5[0m.自动单次选课🚀
+6,sx.刷新愿望清单📋
+7,rf.重新获取参数🔄
+[1;36m9[0m.设定开始时间⏰
 0.其他
 ---------------------
 ps:.前的值为功能代码
 ********************************`+"\n", color.Bold, cfg.modeName, color.Reset)
+	//fmt.Print("请输入功能代码(-2 退出系统): ")
 	code, err := utils.UserInputWithSigInt("请输入功能代码(-2 退出系统):")
 	if err != nil {
 		if errors.Is(err, io.EOF) || errors.Is(err, terminal.InterruptErr) {
@@ -67,7 +71,9 @@ func (a *APIClient) GetCourseCtl(modeCode string) {
 	// var tkList CustomCourseDic
 	// tkList.Jxbmc = "/**-**/"
 	sCustL := NewCustomCourseSlice()
-	cfg.wantClassList, cfg.wantTeacherList, cfg.wantTypeList = utils.ReadExcel(a.Config.Want)
+	//cfg.njdm_id_list0 = "20" + a.account[:2]
+	// cfg.njdm_id_list = "2023"
+	cfg.wantClassList, cfg.wantTeacherList, cfg.wantTypeList = config.ReadExcel(a.Config.Want)
 	cfg.startTimeStamp = readStartTimeConfig()
 	cfg.smtpConfig = utils.SMTPReadConfig()
 	cfg.modeName = "(未初始化)"
@@ -126,7 +132,7 @@ func (a *APIClient) GetCourseCtl(modeCode string) {
 					fmt.Printf("总学分最高: %s\n", cfg.maxCredit)
 					fmt.Printf("本学期已选学分: %s\n", cfg.selectedCredit)
 
-					a.getCourseListPre(ctx, &cfg, cfg.xkkz_id, cfg.xszxzt, false)
+					a.getCourseListPre(ctx, &cfg, false)
 					if errors.Is(ctx.Err(), context.Canceled) {
 						return
 					}
@@ -250,10 +256,11 @@ color.色彩测试
 en,zh.中英文切换
 who,info.我是谁 %s
 wakeup.输出csv课表
-save.保存index
-load_index.
+save.保存index 💾
+li.load_index.
 load.从教务系统获取剩余参数
 cookie.
+exam.
 ********************************`+"\n", len(cfg.modeStore), cfg.smtpConfig.Enable, cfg.yl, a.Http.Timeout().Seconds(), a.Config.Account)
 		code, err = utils.UserInputWithSigInt("请输入功能代码(-1 退出其他):")
 		if err != nil {
@@ -264,7 +271,7 @@ cookie.
 		case "-1", ".", "@":
 			return
 		case "0":
-			a.detectTime(context.Background())
+			a.detectTime0()
 		case "1":
 			a.setMode(cfg)
 		case "2":
@@ -346,7 +353,7 @@ cookie.
 			a.detectKeepAliveTime()
 		case "save":
 			a.save(cfg)
-		case "load_index":
+		case "load_index", "load_i", "li":
 			fmt.Println("从 zzxkyzb_cxZzxkYzbIndex.html 文件设置选课参数")
 			docNode, err := htmlquery.LoadDoc("zzxkyzb_cxZzxkYzbIndex.html")
 			if err != nil {
@@ -356,18 +363,17 @@ cookie.
 			parseYzbIndexHtml(cfg, docNode)
 		case "load":
 			fmt.Println("等待模式修改:", cfg.modeName)
-			a.getCourseListPre(context.Background(), cfg, cfg.xkkz_id, cfg.xszxzt, false)
+			a.getCourseListPre(context.Background(), cfg, false)
 			fmt.Println("模式设置为:", cfg.modeName)
 		case "cookie":
 			fmt.Println()
-			targetURL, _ := url.Parse(a.Http.BaseURL())
-			cookies := a.Http.CookieJar().Cookies(targetURL)
-			parts := make([]string, len(cookies))
-			for i, c := range cookies {
-				parts[i] = c.Name + "=" + c.Value
+			a.cookie()
+		case "exam":
+			year, termInt := GetUserInputYearTerm(GetSuggestYearTerm2())
+			if termInt == 0 {
+				return
 			}
-			cookieStr := strings.Join(parts, "; ")
-			fmt.Println(cookieStr)
+			a.GetExam(year, termInt)
 		case "dev":
 			a.devMode(cfg)
 		default:
@@ -446,6 +452,7 @@ trace.
 				continue
 			}
 			a.Http.SetBaseURL(baseUrl)
+			a.hedgeC.SetBaseURL(baseUrl)
 			fmt.Println("baseUrl设置为:", baseUrl)
 		case "trace":
 			a.Http.SetTrace(true)
@@ -492,7 +499,7 @@ func (a *APIClient) setMode(cfg *APIConfig) {
 		cfg.kklxdm = cfg.modeStore[index].Kklxdm
 		cfg.xkkz_id = cfg.modeStore[index].Xkkz_id
 		fmt.Println("等待模式修改:", cfg.modeName)
-		a.getCourseListPre(context.Background(), cfg, cfg.xkkz_id, cfg.xszxzt, false)
+		a.getCourseListPre(context.Background(), cfg, false)
 		fmt.Println("模式设置为:", cfg.modeName)
 	} else {
 		fmt.Println("无效的选择")
@@ -514,7 +521,6 @@ func (a *APIClient) wakeup_() {
 	}
 	outputWakeupCSV(a.getHaveSelectedList(year, TERM[termInt]))
 }
-
 func (a *APIClient) wakeup() {
 	year, termInt := GetUserInputYearTerm(GetSuggestYearTerm2())
 	if termInt == 0 {
@@ -760,7 +766,7 @@ func (a *APIClient) JL(cfg *APIConfig, cust *SafeCustomCourseSlice, single bool)
 							}
 							// 选课失败，判断是否选回退的课
 							if successQuit {
-								chCResult := a.chooseCourseWithXXXXX(cfg, &tkDic, sigCh)
+								chCResult := a.chooseCourseWithPlaySound(cfg, &tkDic, sigCh)
 								fmt.Println("选回退课:", chCResult)
 								log.Println("选回退课:", chCResult)
 								// if chCResult.Flag == "1" {
@@ -960,9 +966,12 @@ func (a *APIClient) XK(cfg *APIConfig, cust *SafeCustomCourseSlice) {
 			//cust.printCourse(cfg)
 		}
 		var toChooseId string
+		//var toChooseIdRow string
 		for toChooseId != "-1" && toChooseId != "exit" {
 			select {
 			case <-ctx.Done():
+				// 这里可以做清理工作，退出 Goroutine
+				//fmt.Println("程序主逻辑已停止。")
 				return
 			default:
 				// 模拟主逻辑
@@ -1079,9 +1088,9 @@ func (a *APIClient) XK(cfg *APIConfig, cust *SafeCustomCourseSlice) {
 
 func refreshWant(cfg *APIConfig, xlsx string) {
 	log.Println("刷新愿望清单")
-	cfg.wantClassList, cfg.wantTeacherList, cfg.wantTypeList = utils.ReadExcel(xlsx)
-	fmt.Println("课程:", cfg.wantClassList)
-	fmt.Println("教师:", cfg.wantTeacherList)
-	fmt.Println("类型:", cfg.wantTypeList)
+	cfg.wantClassList, cfg.wantTeacherList, cfg.wantTypeList = config.ReadExcel(xlsx)
+	fmt.Println("课程: [" + strings.Join(cfg.wantClassList, "; ") + "]")
+	fmt.Println("教师: [" + strings.Join(cfg.wantTeacherList, "; ") + "]")
+	fmt.Println("类型: [" + strings.Join(cfg.wantTypeList, "; ") + "]")
 	log.Println(cfg.wantClassList, cfg.wantTeacherList, cfg.wantTypeList)
 }

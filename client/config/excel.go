@@ -1,4 +1,4 @@
-package utils
+package config
 
 import (
 	"fmt"
@@ -114,7 +114,7 @@ func writeExcel(filename string) {
 		return
 	}
 	headers := []string{"教学班名称"}
-	data := [][]interface{}{
+	data := [][]any{
 		{"防止匹配-第一志愿-如足球"},
 		{"蓝球-防止匹配-第二志愿"},
 		{"第三志愿"},
@@ -125,13 +125,13 @@ func writeExcel(filename string) {
 	writeExcelData(f, sheetClass, headers, data)
 
 	headers = []string{"上课教师"}
-	data = [][]interface{}{
+	data = [][]any{
 		{"超星尔雅"},
 	}
 	writeExcelData(f, sheetTeacher, headers, data)
 
 	headers = []string{"课程类型"}
-	data = [][]interface{}{
+	data = [][]any{
 		{"体育"},
 		{"艺术类"},
 		{"人文类"},
@@ -147,7 +147,7 @@ func writeExcel(filename string) {
 	// fmt.Println("Excel文件已成功创建: want.xlsx")
 }
 
-func writeExcelData(f *excelize.File, sheetName string, headers []string, data [][]interface{}) {
+func writeExcelData(f *excelize.File, sheetName string, headers []string, data [][]any) {
 	// 写入表头（第一行）
 
 	for colIdx, header := range headers {

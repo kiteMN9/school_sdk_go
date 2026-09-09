@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
-	"net/url"
 	"os"
 	"os/signal"
 	baseCfg "school_sdk/config"
@@ -14,11 +13,33 @@ import (
 	"strings"
 	"sync"
 	"syscall"
+	"time"
 	"unicode/utf8"
 
 	"github.com/antchfx/htmlquery"
 	"golang.org/x/net/html"
 )
+
+func CheckTime(timeStr string) {
+	//时间检测
+	if timeStr == "" || len(timeStr) < 6 {
+		return
+	}
+	// 日期格式
+	layout := "2006-01-02 15:04:05"
+	// 解析日期字符串为time.Time对象
+	loc, _ := time.LoadLocation("Local")
+	//fmt.Printf("dateStr:'%s'\n", dateStr)
+	timeObj, err := time.ParseInLocation(layout, timeStr, loc)
+	if err != nil {
+		return
+	}
+	systemTime := time.Now()
+	diff := systemTime.Sub(timeObj).Abs()
+	if diff > 24*time.Hour && diff < 16*30*24*time.Hour {
+		fmt.Println("当前时间和教务系统时间差:", diff)
+	}
+}
 
 func parseKklxdmXkkzId(cfg *APIConfig, docNode *html.Node) {
 	nodes := htmlquery.Find(docNode, `*//ul/li/a`)
@@ -64,7 +85,8 @@ func parseKklxdmXkkzId(cfg *APIConfig, docNode *html.Node) {
 	}
 }
 
-func (a *APIClient) chooseCourseWithXXXXX(cfg *APIConfig, co *CustomCourseDic, sigCh chan os.Signal) ChooseCourseResult {
+func (a *APIClient) chooseCourseWithPlaySound(cfg *APIConfig, co *CustomCourseDic, sigCh chan os.Signal) ChooseCourseResult {
+
 	ctx, cancel := context.WithCancel(context.Background())
 	var done = make(chan bool)
 	defer close(done)
@@ -79,6 +101,7 @@ func (a *APIClient) chooseCourseWithXXXXX(cfg *APIConfig, co *CustomCourseDic, s
 }
 
 func zf9ChooseResultParse(result ChooseCourseResult) string {
+	// 目前解决正方选课条件竞争bug，或走后门导致自动选课异常的方法
 	// {"msg":"0,394E58D5537473F8E065FCFCFE1D0407,130,","flag":"-1"}
 	// fzjxb,jxb_id,yxzrs,blyxrs
 	if result.Flag != "-1" {
@@ -234,7 +257,24 @@ func (s *SafeCustomCourseSlice) courseDetail2custom(list []CourseDetail) {
 				break
 			}
 		}
-
+		// append
+		// var tmp CustomCourseDic
+		// tmp.JxbId = list[i].JxbId
+		// tmp.Jxbmc = list[i].Jxbmc
+		// tmp.Kch_id = list[i].Kch_id
+		// tmp.Kcmc = list[i].Kcmc
+		// tmp.Kklxdm = list[i].Kklxdm
+		// tmp.Kzmc = list[i].Kzmc
+		// tmp.XF = list[i].XF
+		// tmp.Xxkbj = list[i].Xxkbj
+		// tmp.Year = list[i].Year
+		// tmp.Yxzrs = list[i].Yxzrs
+		// tmp.Cxbj = list[i].Cxbj
+		// tmp.Date = list[i].Date
+		// tmp.DateDigit = list[i].DateDigit
+		// tmp.DateDigitSeparator = list[i].DateDigitSeparator
+		// // tmp. = list[i].
+		// cust = append(cust, tmp)
 	}
 	return
 }
@@ -260,6 +300,7 @@ func processLine(line string) string {
 }
 
 func (s *SafeCustomCourseSlice) isKchIdAllSame() (bool, int) {
+	// log.Println("==========is_kch_id_same()==========")
 	s.mu.RLock()         // 加读锁（允许其他读，阻塞写）
 	defer s.mu.RUnlock() // 确保解锁
 	if len(s.items) == 0 {
@@ -593,7 +634,7 @@ func checkCourseMsg(result ChooseCourseResult) bool {
 
 // HandChooseCourse return 选课状态, flag
 func (a *APIClient) HandChooseCourse(cfg *APIConfig, cust *SafeCustomCourseSlice, index int, sigCh chan os.Signal) (bool, ChooseCourseResult) {
-	chooseResult := a.chooseCourseWithXXXXX(cfg, &cust.items[index], sigCh)
+	chooseResult := a.chooseCourseWithPlaySound(cfg, &cust.items[index], sigCh)
 	if chooseResult.Flag == "1" {
 		fmt.Println("*-选课成功✅-*-", cust.items[index].Jxbmc)
 		log.Println("*-选课成功✅-*-", cust.items[index].Jxbmc)
@@ -813,18 +854,6 @@ func (a *APIClient) quitSelectedNormal(cfg *APIConfig) {
 		}
 	}
 
-}
-
-func (a *APIClient) cookie() {
-	targetURL, _ := url.Parse(a.Http.BaseURL())
-	cookies := a.Http.CookieJar().Cookies(targetURL)
-	parts := make([]string, len(cookies))
-	for i, c := range cookies {
-		parts[i] = c.Name + "=" + c.Value
-	}
-	if cookieStr := strings.Join(parts, "; "); cookieStr != "" {
-		fmt.Println(cookieStr)
-	}
 }
 
 func GetUserInputYearTerm(year string, termI int) (string, int) {

@@ -87,8 +87,8 @@ func (a *APIClient) LoginCheck(resp *resty.Response) bool {
 		time.Sleep(4 * time.Second)
 		return true
 	}
-	if !a.CheckLogout302(resp) {
-		return true
+	if a.CheckLogout302(resp) {
+		return false
 	}
 	return utils.UserIsLogin(a.Config.Account, resp.String())
 }

@@ -199,6 +199,7 @@ func (a *APIClient) captchaControl(ctx context.Context, wg *sync.WaitGroup, Logi
 		if verResult {
 			// wg.Wait()
 			log.Println("验证用时:", time.Since(captchaStartTime))
+			fmt.Println("cap verfied")
 			return true
 		}
 
@@ -442,6 +443,7 @@ func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
 		res := <-resultCh
 		if !res.con {
 			log.Println("csrf")
+			fmt.Println("csrf index ok")
 			return res.csrfToken, res.haveYZM, res.isLogin
 		}
 		continue
@@ -517,6 +519,7 @@ func (a *APIClient) getRTK() string {
 			time.Sleep(4 * time.Second)
 		} else {
 			log.Println("rtk")
+			fmt.Println("rtk ok")
 			return rtk
 		}
 	}
@@ -604,6 +607,7 @@ func (a *APIClient) getCaptchaParams(rtk, t string) captchaData {
 			fmt.Println(jsonResult.Msg)
 		}
 		log.Println("captchaParams")
+		fmt.Println("captchaParams ok")
 		return jsonResult
 	}
 }
@@ -643,6 +647,7 @@ func (a *APIClient) getCaptchaImage(imtk, id string, T int64) ([]byte, error) {
 		return nil, noImage
 	}
 	log.Println("image")
+	fmt.Println("img ok")
 	return resp.Bytes(), nil
 }
 
@@ -697,6 +702,7 @@ func (a *APIClient) getRsaPublicKey(ctx context.Context, wg *sync.WaitGroup, t *
 			*t = strconv.FormatInt(time.Now().UnixMilli(), 10)
 			continue
 		}
+		fmt.Println("rsa ok")
 		return
 	}
 }
@@ -982,6 +988,7 @@ func (a *APIClient) ssoTicketLogin(location string) bool {
 		log.Println("GetJwCookie2 location:", location)
 		return false
 	}
+	fmt.Println("verify ticket")
 	var location2 string
 	for range 8 {
 		resp, err := a.hedgeC.R().
@@ -1022,7 +1029,7 @@ func (a *APIClient) ssoTicketLogin(location string) bool {
 	if strings.HasPrefix(a.Config.BaseURL, "https://") && strings.HasPrefix(location2, "http://") {
 		location2 = strings.Replace(location2, "http://", "https://", -1)
 	}
-
+	fmt.Println("ticketlogin")
 	for range 6 {
 		resp, err := a.hedgeC.R().
 			SetHeader("Referer", "https://portal.ycit.edu.cn/main.html").

@@ -137,7 +137,7 @@ func (a *APIClient) GetCourseCtl(modeCode string) {
 					}
 					fmt.Printf("距离选课结束还有 \033[1;36m%s\033[0m 天 共 \033[1;36m%s\033[0m 小时\n", cfg.syts, cfg.syxs)
 					log.Printf("距离选课结束还有 %s 天 共 %s 小时", cfg.syts, cfg.syxs)
-					fmt.Println(cfg.xkjssj)
+					fmt.Printf(BoldYellow+"%s"+Reset+"\n", cfg.xkjssj)
 
 					switch code {
 					case "1", "xk", "4", "jl", "5", "xk2":

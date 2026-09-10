@@ -1,7 +1,8 @@
 package utils
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	"os"
@@ -11,35 +12,18 @@ import (
 
 const SMTPConfigFileName = "SMTP.json"
 
-func SendMail(cfg SMTPConfig, subject, content string) {
-	m := gomail.NewMessage()
-	//m.SetHeader("From", "sender@example.com")
-	m.SetHeader("From", cfg.From)
-	//m.SetHeader("To", "recipient@example.com")
-	m.SetHeader("Bcc", cfg.To...)
-	m.SetHeader("Subject", subject)
-	m.SetBody("text/html", content)
-
-	d := gomail.NewDialer(cfg.Host, cfg.Port, cfg.From, cfg.Password)
-
-	if err := d.DialAndSend(m); err != nil {
-		log.Println(err)
-	}
+type SMTPConfig struct {
+	Host     string   `json:"host"`
+	Port     int      `json:"port"`
+	From     string   `json:"from"`
+	To       []string `json:"to"`
+	Password string   `json:"password"`
+	Enable   bool     `json:"enable"`
+	d        *gomail.Dialer
 }
 
-func SetSMTPConfigDefault() {
-	initialData := SMTPConfig{
-		Host:     "smtp.qq.com",
-		Port:     587,
-		From:     "abcdefg@qq.com",
-		To:       []string{"123456@qq.com", "456789@qq.com"},
-		Password: "qq smtp password",
-	}
-	SetSMTPConfig(initialData)
-}
-
-func SetSMTPConfig(configData SMTPConfig) {
-	dataByte, err := json.MarshalIndent(configData, "", "  ") // 无前缀，两个空格缩进
+func (c *SMTPConfig) WriteSMTPConfig() {
+	dataByte, err := json.Marshal(c, jsontext.WithIndent("  ")) // 无前缀，两个空格缩进
 	if err != nil {
 		panic(fmt.Sprintf("JSON序列化失败: %v", err))
 	}
@@ -49,13 +33,24 @@ func SetSMTPConfig(configData SMTPConfig) {
 	}
 }
 
-func SMTPReadConfig() SMTPConfig {
+func initSMTPConfigDefault() *SMTPConfig {
+	initialData := SMTPConfig{
+		Host:     "smtp.qq.com",
+		Port:     587,
+		From:     "abcdefg@qq.com",
+		To:       []string{"123456@qq.com", "456789@qq.com"},
+		Password: "smtp password",
+	}
+	initialData.WriteSMTPConfig()
+	return &initialData
+}
+
+func SMTPReadConfig() *SMTPConfig {
 	filename := SMTPConfigFileName
 	if _, err := os.Stat(filename); os.IsNotExist(err) {
-		SetSMTPConfigDefault()
+		return initSMTPConfigDefault()
 	}
 	byteValue, err := os.ReadFile(filename)
-
 	if err != nil {
 		panic(err)
 	}
@@ -63,17 +58,27 @@ func SMTPReadConfig() SMTPConfig {
 	err = json.Unmarshal(byteValue, &config)
 	if err != nil {
 		fmt.Println("json配置解析失败")
-		log.Fatalln("json配置解析失败")
-		return SMTPConfig{}
+		log.Println("json配置解析失败")
+		config.WriteSMTPConfig()
+		return &config
 	}
-	return config
+	return &config
 }
 
-type SMTPConfig struct {
-	Host     string   `json:"host"`
-	Port     int      `json:"port"`
-	From     string   `json:"from"`
-	To       []string `json:"to"`
-	Password string   `json:"password"`
-	Enable   bool     `json:"enable"`
+func (c *SMTPConfig) SendMail(subject, content string) {
+	m := gomail.NewMessage()
+	//m.SetHeader("From", "sender@example.com")
+	m.SetHeader("From", c.From)
+	//m.SetHeader("To", "recipient@example.com")
+	m.SetHeader("Bcc", c.To...)
+	m.SetHeader("Subject", subject)
+	m.SetBody("text/html", content)
+
+	if c.d == nil {
+		c.d = gomail.NewDialer(c.Host, c.Port, c.From, c.Password)
+	}
+
+	if err := c.d.DialAndSend(m); err != nil {
+		log.Println(err)
+	}
 }

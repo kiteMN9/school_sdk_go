@@ -15,7 +15,7 @@ import (
 	"school_sdk/utils"
 )
 
-var version = "school_sdk_go 1.2.17-dev4"
+var version = "school_sdk_go 1.2.17-dev7"
 
 func main() {
 	var cfgFileName, wantFile, modeCode, route string
@@ -58,6 +58,7 @@ func main() {
 		}
 	}()
 	log.Println("程序启动") // 写入文件和控制台
+	fmt.Println(version)
 	startTime := time.Now()
 	fCfg := config.ReadConfig(cfgFileName)
 	if wantFile != "want.xlsx" || fCfg.Want == "" {

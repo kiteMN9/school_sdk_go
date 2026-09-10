@@ -13,6 +13,7 @@ import (
 	"school_sdk/client/hedge"
 	"school_sdk/client/internal"
 	baseCfg "school_sdk/config"
+	"school_sdk/utils"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ type APIClient struct {
 	enableCas2       bool
 	cas2Client       *cas2.Client
 	lastRequestTime  time.Time
+	Smtp             *utils.SMTPConfig
 }
 
 func baseURLLegalCheck(baseURL string) string {
@@ -52,16 +54,31 @@ func baseURLLegalCheck(baseURL string) string {
 
 func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) (*resty.Client, *resty.Client) {
 	baseURLLegalCheck(baseURL)
-	client := resty.New().
-		SetRedirectPolicy(resty.RedirectNoPolicy()).
+	client := resty.NewWithTransportSettings(&resty.TransportSettings{
+		ResponseHeaderTimeout: 35 * time.Second,
+		DisableKeepAlives:     false,
+	}).
+		//SetRedirectPolicy(resty.RedirectNoPolicy()).
+		SetRedirectPolicy(resty.RedirectPolicyFunc(func(req *http.Request, via []*http.Request) error {
+			if req.Response != nil {
+				if req.Response.StatusCode == http.StatusMovedPermanently {
+					return nil
+				}
+			}
+			return http.ErrUseLastResponse
+		})).
 		SetBaseURL(baseURL)
-	client.Client().Timeout = 50 * time.Second
+	client.Client().Timeout = 55 * time.Second //
 
 	if os.Getenv("proxy") == "1" {
 		client.SetProxy("http://127.0.0.1:8866")
 		if tls_ := client.TLSClientConfig(); tls_ != nil {
 			tls_.InsecureSkipVerify = true
 			//client.SetCloseConnection(true)
+		}
+		transport, err := client.HTTPTransport()
+		if err == nil {
+			transport.DisableKeepAlives = false
 		}
 	}
 
@@ -71,7 +88,7 @@ func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) (*
 	if timeout < 4*time.Second {
 		timeout = 4 * time.Second
 	}
-	client.SetTimeout(timeout) // 整个请求的超时时间
+	client.SetTimeout(timeout) // ctx控制整个请求的超时时间包括读取响应体
 	client.SetRateLimiter(resty.NewRateLimitSlidingWindow(10, 4*time.Second))
 	client.SetRetryCount(3).
 		AddRetryConditions(resty.RetryConditionStatus5XX)
@@ -89,7 +106,9 @@ func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) (*
 		if transport, _ := client.HTTPTransport(); transport != nil {
 			transport.IdleConnTimeout = 68 * time.Second
 		}
+
 	}
+	client.SetHeader("Connection", "keep-alive")
 
 	if fCfg.Hedging {
 		delay, err := time.ParseDuration(fCfg.HedgingDelay)
@@ -105,13 +124,14 @@ func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) (*
 		hedgedClient := &http.Client{
 			Transport: ht,
 			Jar:       client.Client().Jar,
-			Timeout:   50 * time.Second,
+			Timeout:   55 * time.Second,
 		}
 		htc := resty.NewWithClient(hedgedClient).SetBaseURL(baseURL).
 			SetTimeout(timeout).SetRedirectPolicy(resty.RedirectNoPolicy())
-		client.SetRateLimiter(resty.NewRateLimitSlidingWindow(10, 4*time.Second))
+		htc.SetRateLimiter(resty.NewRateLimitSlidingWindow(10, 4*time.Second))
 		//htc.SetHeader("Referer", refer)
 		htc.SetHeader("user-agent", fCfg.UserAgent)
+		htc.SetHeader("Connection", "keep-alive")
 		htc.AddContentDecompresser("br", internal.DecompressBrotli)
 		return client, htc
 	}
@@ -135,22 +155,23 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 			//"018f9ff65252ca4f51865070844ae0be", // 慢且cas登录失败
 			//"34ff17f478ebaa7e4063c9d5a95901d0", // 慢且cas登录失败
 			//"425b918000ed5b18d10afb85fbbf8ec7", // 快
-			//"8ed16c15842922decba77aa1ed63b61f", // 快❌
-			//"c80e782f5a3340e86274809ce311b6b4", // 快
-
-			"c8aa7be12690eaa40200741aded427f8", // 55.3428ms cas✅
+			"c80e782f5a3340e86274809ce311b6b4", // 快
+			//"c8aa7be12690eaa40200741aded427f8", // 55.3428ms cas✅
 			"8ed16c15842922decba77aa1ed63b61f", // 52.1706ms cas✅
 		}
 		if len(cfg.Routes) != 0 {
 			routes = cfg.Routes
 		}
-		if len(cfg.Routes) != 0 {
+		if len(routes) != 0 {
 			selected := routes[rand.Intn(len(routes))]
 			cookie := &http.Cookie{ // 过 nginx有这个
-				Name:  "route",
-				Value: selected, // 手动设置成一样的会有非常明显的挤号问题
+				Name:   "route",
+				Value:  selected, // 手动设置成一样的会有非常明显的挤号问题
+				Domain: "ycit.edu.cn",
+				Path:   "/",
 			}
-			//log.Println(selected)
+			log.Println("route:", selected)
+			fmt.Printf("route: (%s)\n", selected)
 			client.CookieJar().SetCookies(u, []*http.Cookie{cookie})
 		}
 	}
@@ -197,17 +218,17 @@ func NewClientWithCookieJar(cfg *config.Data, timeout time.Duration, jar *cookie
 	}
 }
 
-func JoinURL(base, endpoint string) (string, error) {
-	baseURL, err := url.Parse(base)
-	if err != nil {
-		return "", err
-	}
-	endpointURL, err1 := url.Parse(endpoint)
-	if err1 != nil {
-		return "", err1
-	}
-	fullURL := baseURL.ResolveReference(endpointURL)
-	return fullURL.String(), nil
-}
+//func JoinURL(base, endpoint string) (string, error) {
+//	baseURL, err := url.Parse(base)
+//	if err != nil {
+//		return "", err
+//	}
+//	endpointURL, err1 := url.Parse(endpoint)
+//	if err1 != nil {
+//		return "", err1
+//	}
+//	fullURL := baseURL.ResolveReference(endpointURL)
+//	return fullURL.String(), nil
+//}
 
 var TERM = map[int]string{0: "", 1: "3", 2: "12", 3: "16"}

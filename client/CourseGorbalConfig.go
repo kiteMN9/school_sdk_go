@@ -2,7 +2,6 @@ package client
 
 import (
 	"fmt"
-	"school_sdk/utils"
 	"sync"
 	"time"
 )
@@ -15,6 +14,8 @@ type APIConfig struct {
 	syxs           string // 距选课结束的小时数
 	syts           string // 距选课结束的天数
 	zxfs           string // 已修分数？
+	xkkssj         string // 2026-09-09 12:30:00
+	xkjssj         string // 选课结束时间 2026-09-10 11:00:0
 
 	//account string // 账号、学号
 	// firstKklxmc string
@@ -46,12 +47,13 @@ type APIConfig struct {
 	jxbzcxskg  string
 	sfkknj     string
 
-	sfktk string // 是否可退课
-	sfkxk string // 是否可选课
-	sfkxq string // 是否开学前
-	xxdm  string // 学校代码
-	xklc  string // 轮次
-	xz    string // 学制4年
+	sfktk  string // 是否可退课
+	sfkxk  string // 是否可选课
+	sfkxq  string // 是否开学前
+	xxdm   string // 学校代码
+	xklc   string // 轮次
+	xklcmc string // 轮次名称
+	xz     string // 学制4年
 
 	mzm     string
 	ccdm    string
@@ -85,13 +87,13 @@ type APIConfig struct {
 	needInit   bool
 	yl         bool // 余量查询参数
 	xztk       bool // 限制退课
-	smtpConfig utils.SMTPConfig
 }
 
 type ModeStore struct {
 	Kklxmc  string
 	Kklxdm  string `json:"kklxdm"` // 关键参数，区分不同类型选课  'kklxdm': '10'
 	Xkkz_id string
+	Xkkz_xh string
 }
 
 type ChosenDic struct {
@@ -129,7 +131,7 @@ type ChosenDic struct {
 	PageTotal int    `json:"pageTotal"`
 	Pageable  bool   `json:"pageable"`
 	Sfktk     string `json:"sfktk"`  // 是否可退课
-	Sfxkbj    string `json:"sfxkbj"` // 是否已选上
+	Sfxkbj    string `json:"sfxkbj"` // 是否处于选课
 	JxbRS     string `json:"jxbrs"`  // 'jxbrs': '68'
 	YXzRS     string `json:"yxzrs"`  // 'yxzrs': '68'
 
@@ -199,47 +201,69 @@ type CourseListDicQueryModel struct {
 // }
 
 type CourseListDic struct {
-	Jxb_id string `json:"jxb_id"` // 教学班id，用于连接List和Detail
-	Jxbmc  string `json:"jxbmc"`  // 教学班名称  "艺术哲学：美是如何诞生的(艺术类)-0001"
-	Kklxdm string `json:"kklxdm"` // 关键参数，区分不同类型选课  '10'
-	Kzmc   string `json:"kzmc"`   // 课程性质  "艺术类"
-	Kch_id string `json:"kch_id"` // 课程号 id
-	Kcmc   string `json:"kcmc"`   // 课程名称  "艺术哲学：美是如何诞生的(艺术类)"
-	XF     string `json:"xf"`     // 学分  "1.5"
-	Yxzrs  string `json:"yxzrs"`  // 已选人数  "70"
-	Cxbj   string `json:"cxbj"`   // 重修标记 0
-	Year   string `json:"year"`   // '2025'
-	Xxkbj  string `json:"xxkbj"`  // 选修课标记?
-
-	Jxbzls string `json:"jxbzls"` // 'jxbzls': '1'
-	Kch    string `json:"kch"`    // 课程号  '9000000398'
-	Blyxrs string `json:"blyxrs"` // 本轮已选人数
-	Blzyl  string `json:"blzyl"`
-
-	Day      string `json:"day"`
-	Month    string `json:"month"`
-	Fxbj     string `json:"fxbj"`
-	Jgpxzd   string `json:"jgpxzd"`
-	Pageable bool   `json:"pageable"`
-
+	Blyxrs             string `json:"blyxrs"` // 本轮已选人数
+	Blzyl              string `json:"blzyl"`
+	Cxbj               string `json:"cxbj"`               // 重修标记 0
 	Date               string `json:"date"`               // '二○二五年二月二十六日'
 	DateDigit          string `json:"dateDigit"`          // '2025年2月26日'
 	DateDigitSeparator string `json:"dateDigitSeparator"` // '2025-2-26'
-	// string                   `json:"kcrow"`
-	// string                   `json:"listnav"`
-	// string                   `json:"localeKey"`
-	// string                   `json:"pageTotal"`
-	// CourseListDic_queryModel `json:"queryModel"`
-	// bool                     `json:"rangeable"`
-	// string                   `json:"totalResult"`
-	// userModel                `json:"userModel"`
+	Day                string `json:"day"`
+	Fxbj               string `json:"fxbj"`
+	Jgpxzd             string `json:"jgpxzd"`
+	JxbId              string `json:"jxb_id"` // 教学班id，用于连接List和Detail
+	Jxbmc              string `json:"jxbmc"`  // 教学班名称  "艺术哲学：美是如何诞生的(艺术类)-0001"
+	Jxbxf              string `json:"jxbxf"`
+	Jxbzls             string `json:"jxbzls"` // 'jxbzls': '1'
+	Kch                string `json:"kch"`    // 课程号  '9000000398'
+	KchId              string `json:"kch_id"` // 课程号 id
+	Kclxmc             string `json:"kclxmc"`
+	Kcmc               string `json:"kcmc"` // 课程名称  "艺术哲学：美是如何诞生的(艺术类)"
+	Kcrow              string `json:"kcrow"`
+	Kklxdm             string `json:"kklxdm"` // 关键参数，区分不同类型选课  '10'
+	Kzmc               string `json:"kzmc"`   // 课程性质  "艺术类"
+	Listnav            string `json:"listnav"`
+	LocaleKey          string `json:"localeKey"`
+	Month              string `json:"month"`
+	PageTotal          int    `json:"pageTotal"`
+	Pageable           bool   `json:"pageable"`
+	QueryModel         struct {
+		CurrentPage   int   `json:"currentPage"`
+		CurrentResult int   `json:"currentResult"`
+		EntityOrField bool  `json:"entityOrField"`
+		Limit         int   `json:"limit"`
+		Offset        int   `json:"offset"`
+		PageNo        int   `json:"pageNo"`
+		PageSize      int   `json:"pageSize"`
+		ShowCount     int   `json:"showCount"`
+		Sorts         []any `json:"sorts"`
+		TotalCount    int   `json:"totalCount"`
+		TotalPage     int   `json:"totalPage"`
+		TotalResult   int   `json:"totalResult"`
+	} `json:"queryModel"`
+	Rangeable   bool   `json:"rangeable"`
+	Rwzxs       string `json:"rwzxs"`
+	Sftj        string `json:"sftj"`
+	TotalResult string `json:"totalResult"`
+	UserModel   struct {
+		Monitor    bool   `json:"monitor"`
+		RoleCount  int    `json:"roleCount"`
+		RoleKeys   string `json:"roleKeys"`
+		RoleValues string `json:"roleValues"`
+		Status     int    `json:"status"`
+		Usable     bool   `json:"usable"`
+	} `json:"userModel"`
+	Xf      string `json:"xf"`    // 学分  "1.5"
+	Xxkbj   string `json:"xxkbj"` // 选修课标记?
+	Year    string `json:"year"`  // '2025'
+	Yxzrs   string `json:"yxzrs"` // 已选人数  "70"
+	Zcongbj string `json:"zcongbj"`
 }
 
 type GetCourseListResult struct {
 	TmpList []CourseListDic `json:"tmpList"` // 搜索课程返回的清单
 	Sfxsjc  string          `json:"sfxsjc"`
 	Msg     string          `json:"msg"`
-	Flag    string          `json:"flag"`
+	Flag    string          `json:"flag"` // 成功 flag=1
 }
 
 type CourseDetail struct {

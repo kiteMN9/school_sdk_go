@@ -1,7 +1,8 @@
 package config
 
 import (
-	"encoding/json"
+	"encoding/json/jsontext"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
 	"io"
@@ -22,18 +23,18 @@ type Data struct {
 	Timeout   string `json:"timeout"`
 	Want      string `json:"want"`
 	//Verify    string `json:"verify"`
-	ExistVerify  bool     `json:"verify" default:"true"`
-	CasLogin     bool     `json:"casLogin" default:"false"`
+	ExistVerify  bool     `json:"verify"`
+	CasLogin     bool     `json:"casLogin"`
 	UserAgent    string   `json:"ua"`
 	PerInfo      bool     `json:"perInfo"`
 	Hedging      bool     `json:"hedging"`
 	HedgingDelay string   `json:"hedgingDelay"`
 	TicketJWT    string   `json:"ticketJWT"`
-	Routes       []string `json:"routes,omitzero"`
+	Routes       []string `json:"routes"`
 }
 
 func (c *Data) WriteConfig() {
-	dataByte, err := json.MarshalIndent(c, "", "  ") // 无前缀，两个空格缩进
+	dataByte, err := json.Marshal(c, jsontext.WithIndent("  "))
 	if err != nil {
 		panic(fmt.Sprintf("JSON序列化失败: %v", err))
 	}
@@ -50,15 +51,15 @@ func initConfig(filename string) *Data {
 		Account:      "account",
 		Passwd:       "password",
 		CasPasswd:    "cas2password",
-		Timeout:      "47s",
+		Timeout:      "43s",
 		Want:         "want.xlsx",
 		UserAgent:    cfg.FireFoxUA,
 		ExistVerify:  true,
 		CasLogin:     false,
 		PerInfo:      true,
 		Hedging:      false,
-		HedgingDelay: "16s",
-		Routes:       []string{},
+		HedgingDelay: "21s",
+		Routes:       []string{""},
 	}
 	initialData.WriteConfig()
 	initialData.SetConfigUserInfo(nil)
@@ -78,11 +79,11 @@ func ReadConfig(filename string) *Data {
 
 	config := Data{
 		filename:     filename,
-		Timeout:      "31s",
+		Timeout:      "43s",
+		UserAgent:    cfg.ApppleUA,
 		ExistVerify:  true,
 		PerInfo:      true,
-		HedgingDelay: "16s",
-		Routes:       []string{},
+		HedgingDelay: "21s",
 	}
 	err = json.Unmarshal(byteValue, &config)
 	if err != nil {

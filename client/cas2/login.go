@@ -388,7 +388,7 @@ func (c *Client) postLogin(encryptResult, execution string) bool {
 		case 401:
 			fmt.Println("cas2 账户或密码错误 401")
 			time.Sleep(3 * time.Second)
-			panic("账户或密码错误")
+			os.Exit(0)
 		case 500:
 			log.Println("postLogin status:", resp.Status())
 			log.Println(resp.String())

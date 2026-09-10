@@ -41,7 +41,7 @@ func CheckTime(timeStr string) {
 	}
 }
 
-func parseKklxdmXkkzId(cfg *APIConfig, docNode *html.Node) {
+func parseKklxdmXkkz__(cfg *APIConfig, docNode *html.Node) {
 	nodes := htmlquery.Find(docNode, `*//ul/li/a`)
 	if len(nodes) != 0 {
 		cfg.modeStore = nil
@@ -72,6 +72,7 @@ func parseKklxdmXkkzId(cfg *APIConfig, docNode *html.Node) {
 		store.Kklxmc = nameNode.Data
 		store.Kklxdm = parts[0]
 		store.Xkkz_id = parts[1]
+		store.Xkkz_xh = "" // TODO:
 		cfg.modeStore = append(cfg.modeStore, store)
 		//fmt.Println("store:", store)
 	}
@@ -149,7 +150,7 @@ func (s *SafeCustomCourseSlice) fix(yl bool, list []CourseListDic) {
 	for i := range s.items {
 		found := false
 		for j := range list {
-			if list[j].Jxb_id == s.items[i].Jxb_id {
+			if list[j].JxbId == s.items[i].Jxb_id {
 				found = true
 				break
 			}
@@ -167,15 +168,15 @@ func (s *SafeCustomCourseSlice) courseList2custom(list []CourseListDic) {
 	found := false      // 发现是否已经在里面了，避免重复添加
 	for i := range list {
 		for j := range s.items {
-			if list[i].Jxb_id == s.items[j].Jxb_id {
+			if list[i].JxbId == s.items[j].Jxb_id {
 				// refersh
 				var tmp = s.items[j]
 				tmp.Jxbmc = list[i].Jxbmc
-				tmp.Kch_id = list[i].Kch_id
+				tmp.Kch_id = list[i].KchId
 				tmp.Kcmc = list[i].Kcmc
 				tmp.Kklxdm = list[i].Kklxdm
 				tmp.Kzmc = list[i].Kzmc
-				tmp.XF = list[i].XF
+				tmp.XF = list[i].Xf
 				tmp.Xxkbj = list[i].Xxkbj
 				tmp.Year = list[i].Year
 				tmp.Yxzrs = list[i].Yxzrs
@@ -202,13 +203,13 @@ func (s *SafeCustomCourseSlice) courseList2custom(list []CourseListDic) {
 		}
 		// append
 		var tmp CustomCourseDic
-		tmp.Jxb_id = list[i].Jxb_id
+		tmp.Jxb_id = list[i].JxbId
 		tmp.Jxbmc = list[i].Jxbmc
-		tmp.Kch_id = list[i].Kch_id
+		tmp.Kch_id = list[i].KchId
 		tmp.Kcmc = list[i].Kcmc
 		tmp.Kklxdm = list[i].Kklxdm
 		tmp.Kzmc = list[i].Kzmc
-		tmp.XF = list[i].XF
+		tmp.XF = list[i].Xf
 		tmp.Xxkbj = list[i].Xxkbj
 		tmp.Year = list[i].Year
 		tmp.Yxzrs = list[i].Yxzrs // 没什么用
@@ -767,7 +768,7 @@ func (a *APIClient) getAlreadySelectedTK(cfg *APIConfig) []ChosenDic {
 			} else {
 				mc = item.Jxbmc
 			}
-			fmt.Printf("\033[1;36m%d\033[0m: \033[1;36m%s\033[0m %s\n", i, mc, item.Jsxx)
+			fmt.Printf("\033[1;36m%d\033[0m: \033[1;36m%s\033[0m %s %s\n", i, mc, item.Jsxx, item.Sksj)
 			var tmp ChosenDic
 			tmp.Do_jxb_id = item.Do_jxb_id
 			tmp.Jxbmc = item.Jxbmc
@@ -827,41 +828,39 @@ func (a *APIClient) quitSelected(cfg *APIConfig) {
 	}
 }
 
-func (a *APIClient) quitSelectedNormal(cfg *APIConfig) {
+func (a *APIClient) quitSelectedNormal(cfg *APIConfig) CustomCourseDic {
+	var tkDic CustomCourseDic
+	tkDic.Jxbmc = "/**-**/"
 	fmt.Println("正在进行可退选课程查询...")
 	quitList := a.getAlreadySelectedTK(cfg)
 	if len(quitList) == 0 {
 		fmt.Println("没有可以退的课")
-		return
+		return tkDic
 	}
 	codeRow, err := utils.UserInputWithSigInt("请输入要退选的课程名字前的序号(-1退出):")
 	if err != nil {
-		return
-	}
-	index, err1 := strconv.Atoi(strings.TrimSpace(codeRow))
-	if err1 != nil {
-		return
-	}
-	if 0 <= index && index < len(quitList) {
-		fmt.Printf("退选课程: %s\n", quitList[index].Jxbmc)
-		//stat, msg := a.quitCourse(quitList[index].DoJxbId)
-		stat, msg := a.quitCourse(cfg, quitList[index].Do_jxb_id, quitList[index].Kch_id)
-		if stat {
-			fmt.Println("退课成功")
-		} else {
-			fmt.Println("退课失败:", msg)
-			log.Println("quit msg:", msg)
-		}
+		return tkDic
 	}
 
+	index, err1 := strconv.Atoi(strings.TrimSpace(codeRow))
+	if err1 != nil {
+		return tkDic
+	}
+	if 0 <= index && index < len(quitList) {
+		fmt.Printf("预退选课程: %s\n", quitList[index].Jxbmc)
+		//stat, msg := a.quitCourse(quitList[index].DoJxbId)
+		tkDic.Do_jxb_id = quitList[index].Do_jxb_id
+		tkDic.Jxbmc = quitList[index].Jxbmc
+		tkDic.Kch_id = quitList[index].Kch_id
+		return tkDic
+	}
+	return tkDic
 }
 
 func GetUserInputYearTerm(year string, termI int) (string, int) {
 	var term = strconv.Itoa(termI)
 	var line = ""
-
 	var termInt int
-
 	fmt.Printf("\033[1;36m%2s\033[0m 年 \033[1;36m%s\033[0m 学期\n", year, term)
 	for {
 		var err error

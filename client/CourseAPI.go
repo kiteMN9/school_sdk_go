@@ -30,6 +30,10 @@ func (a *APIClient) getPubParams(ctx context.Context, cfg *APIConfig, save bool)
 		resp, err := a.hedgeC.R().
 			SetContext(ctx).
 			SetQueryParam("gnmkdm", "N253512").
+			SetFormData(map[string]string{
+				"gnmkdm":  "N253512", // 这个接口能post
+				"czdmKey": "00",
+			}).
 			Get(baseCfg.ChooseCourseIndex)
 
 		if err != nil {
@@ -172,7 +176,7 @@ func parseYzbIndexHtml(cfg *APIConfig, docNode *html.Node) bool {
 	fmt.Println("✅ Step 1 index finished")
 	fmt.Println("\n\r将要选 \033[1;36m", cfg.Kklxmc, "\033[0m !!")
 	log.Println("将要选", cfg.Kklxmc, "!!")
-	parseKklxdmXkkzId(cfg, docNode)
+	parseKklxdmXkkz__(cfg, docNode)
 	cfg.modeName = cfg.Kklxmc
 	return false
 }
@@ -220,12 +224,12 @@ func (a *APIClient) getCourseListPre(ctx context.Context, cfg *APIConfig, save b
 			fmt.Println("ListPre:", resp.Status(), resp.String())
 			continue
 		}
+		if a.LoginCheck(resp) {
+		} else {
+			a.ReLogin()
+			continue
+		}
 		if resp.IsStatusSuccess() {
-			if a.LoginCheck(resp) {
-			} else {
-				a.ReLogin()
-				continue
-			}
 			docNode, err1 := htmlquery.Parse(bytes.NewReader(resp.Bytes()))
 			//docNode, err1 := htmlquery.Parse(strings.NewReader(htmlContent))
 			//docNode, err1 := htmlquery.Parse(resp.Body)
@@ -284,6 +288,8 @@ func parseListPreHtml(cfg *APIConfig, docNode *html.Node) {
 	cfg.bklx_id = getXpathValue(docNode, "bklx_id")
 	cfg.rwlx = getXpathValue(docNode, "rwlx")
 	cfg.xkly = getXpathValue(docNode, "xkly")
+	cfg.xklc = getXpathValue(docNode, "xklc")     // 选课轮次
+	cfg.xklcmc = getXpathValue(docNode, "xklcmc") // 选课轮次
 	cfg.sfkknj = getXpathValue(docNode, "sfkknj")
 	cfg.rlkz = getXpathValue(docNode, "rlkz")
 	cfg.cdrlkz = getXpathValue(docNode, "cdrlkz")
@@ -300,13 +306,14 @@ func parseListPreHtml(cfg *APIConfig, docNode *html.Node) {
 	cfg.zdkxms = getXpathValue(docNode, "zdkxms")
 	cfg.sfkxq = getXpathValue(docNode, "sfkxq")
 	cfg.bbhzxjxb = getXpathValue(docNode, "bbhzxjxb")
-	cfg.xklc = getXpathValue(docNode, "xklc")
 	cfg.rlzlkz = getXpathValue(docNode, "rlzlkz")
-	cfg.sfkxk = getXpathValue(docNode, "sfkxk") // 是否可选课
-	cfg.sfktk = getXpathValue(docNode, "sfktk") // 是否可退课
-	cfg.jdlx = getXpathValue(docNode, "jdlx")   // 体育课多志愿开关
-	cfg.syts = getXpathValue(docNode, "syts")   // 距选课结束还剩{0}天
-	cfg.syxs = getXpathValue(docNode, "syxs")   // 距选课结束还剩{0}小时
+	cfg.sfkxk = getXpathValue(docNode, "sfkxk")   // 是否可选课
+	cfg.sfktk = getXpathValue(docNode, "sfktk")   // 是否可退课
+	cfg.jdlx = getXpathValue(docNode, "jdlx")     // 体育课多志愿开关
+	cfg.syts = getXpathValue(docNode, "syts")     // 距选课结束还剩{0}天
+	cfg.syxs = getXpathValue(docNode, "syxs")     // 距选课结束还剩{0}小时
+	cfg.xkkssj = getXpathValue(docNode, "xkkssj") // 选课开始时间
+	cfg.xkjssj = getXpathValue(docNode, "xkjssj") // 选课结束时间
 	if cfg.bklx_id == "" && cfg.rwlx == "" && cfg.xkly == "" && cfg.syxs == "" {
 		fmt.Println("❌ Step 2 params failed")
 		return
@@ -365,7 +372,7 @@ func (a *APIClient) getCourseList(ctx context.Context, cfg *APIConfig) []CourseL
 			"rlkz":   cfg.rlkz,
 			// 	xkzgbj: 0
 			"kspage": "1",
-			"jspage": "200", // 页号，一页显示的数量，必须
+			"jspage": "222", // 页号，一页显示的数量，必须
 			//"jxbzb":  "",
 		}
 		if cfg.xkkz_id != "" {
@@ -384,7 +391,7 @@ func (a *APIClient) getCourseList(ctx context.Context, cfg *APIConfig) []CourseL
 			SetContext(ctx).
 			SetQueryParams(map[string]string{
 				"gnmkdm": "N253512",
-				"su":     a.Config.Account,
+				//"su":     a.Config.Account,
 			}).
 			SetFormData(formData)
 		//SetResult(&result).SetError(&respStr)
@@ -410,6 +417,12 @@ func (a *APIClient) getCourseList(ctx context.Context, cfg *APIConfig) []CourseL
 		if resp.IsStatusFailure() {
 			log.Println(resp.Status(), resp.String())
 			time.Sleep(1 * time.Second)
+			continue
+		}
+		if a.LoginCheck(resp) {
+		} else {
+			// fmt.Println("重新登录")
+			a.ReLogin()
 			continue
 		}
 		if resp.IsStatusSuccess() {
@@ -442,12 +455,6 @@ func (a *APIClient) getCourseList(ctx context.Context, cfg *APIConfig) []CourseL
 			continue
 		}
 
-		if a.LoginCheck(resp) {
-		} else {
-			// fmt.Println("重新登录")
-			a.ReLogin()
-			continue
-		}
 	}
 }
 
@@ -515,10 +522,12 @@ func (a *APIClient) getCourseDetail(ctx context.Context, cfg *APIConfig, kch_id 
 		}
 		if cfg.xkkz_id != "" {
 			formData["xkkz_id"] = cfg.xkkz_id
-		}
-		if cfg.xkkz_xh != "" {
+		} else {
 			formData["xkkz_xh"] = cfg.xkkz_xh
 		}
+		//if cfg.xkkz_xh != "" {
+		//	formData["xkkz_xh"] = cfg.xkkz_xh
+		//}
 		if cfg.njdm_id_list0 != "" {
 			formData["njdm_id_list[0]"] = cfg.njdm_id_list0 // 这个就是选课的时候筛选的条件，建议只填个年级就好了
 		}
@@ -529,7 +538,7 @@ func (a *APIClient) getCourseDetail(ctx context.Context, cfg *APIConfig, kch_id 
 			SetContext(ctx).
 			SetQueryParams(map[string]string{
 				"gnmkdm": "N253512",
-				"su":     a.Config.Account,
+				//"su":     a.Config.Account,
 			}).
 			SetFormData(formData)
 
@@ -550,10 +559,23 @@ func (a *APIClient) getCourseDetail(ctx context.Context, cfg *APIConfig, kch_id 
 			time.Sleep(370 * time.Millisecond)
 			continue
 		}
-
 		if resp.IsStatusFailure() {
 			log.Println(resp.Status(), resp.String())
 			time.Sleep(1 * time.Second)
+			continue
+		}
+		if a.LoginCheck(resp) {
+			if !cfg.detailDump {
+				log.Println(resp.String())
+				cfg.detailDump = true
+			}
+			if result != nil {
+				return result
+			}
+		} else {
+			loginWg.Add(1)
+			a.ReLogin()
+			loginWg.Done()
 			continue
 		}
 		if resp.IsStatusSuccess() {
@@ -579,22 +601,6 @@ func (a *APIClient) getCourseDetail(ctx context.Context, cfg *APIConfig, kch_id 
 			}
 		}
 
-		if a.LoginCheck(resp) {
-			if !cfg.detailDump {
-				log.Println(resp.String())
-				cfg.detailDump = true
-			}
-			if result != nil {
-				return result
-			}
-			//log.Println(resp.String())
-			//continue
-		} else {
-			loginWg.Add(1)
-			a.ReLogin()
-			loginWg.Done()
-			continue
-		}
 	}
 }
 
@@ -613,10 +619,12 @@ func (a *APIClient) getCourseDoJxb(ctx context.Context, cfg *APIConfig, jxb_ids 
 		}
 		if cfg.xkkz_id != "" {
 			formData["xkkz_id"] = cfg.xkkz_id
-		}
-		if cfg.xkkz_xh != "" {
+		} else {
 			formData["xkkz_xh"] = cfg.xkkz_xh
 		}
+		//if cfg.xkkz_xh != "" {
+		//	formData["xkkz_xh"] = cfg.xkkz_xh
+		//}
 		requ := a.hedgeC.R().
 			SetContext(ctx).
 			SetQueryParams(map[string]string{
@@ -648,18 +656,6 @@ func (a *APIClient) getCourseDoJxb(ctx context.Context, cfg *APIConfig, jxb_ids 
 			time.Sleep(1 * time.Second)
 			continue
 		}
-
-		if err := json.Unmarshal(resp.Bytes(), &result); err != nil {
-			if resp.String() == `"0"` {
-				fmt.Println(`"0"，未查询到信息，可能没到选课时间，可能程序编写错误，也可能教务系统临时调整了选课`)
-				log.Println(`"0"，未查询到信息，可能没到选课时间，可能程序编写错误，也可能教务系统临时调整了选课`)
-				cfg.needInit = true
-				return nil
-			}
-			fmt.Println(err)
-			log.Println(err, resp.String())
-		}
-
 		if a.LoginCheck(resp) {
 			if !cfg.detailDump {
 				log.Println(resp.String())
@@ -675,6 +671,16 @@ func (a *APIClient) getCourseDoJxb(ctx context.Context, cfg *APIConfig, jxb_ids 
 			a.ReLogin()
 			loginWg.Done()
 			continue
+		}
+		if err := json.Unmarshal(resp.Bytes(), &result); err != nil {
+			if resp.String() == `"0"` {
+				fmt.Println(`"0"，未查询到信息，可能没到选课时间，可能程序编写错误，也可能教务系统临时调整了选课`)
+				log.Println(`"0"，未查询到信息，可能没到选课时间，可能程序编写错误，也可能教务系统临时调整了选课`)
+				cfg.needInit = true
+				return nil
+			}
+			fmt.Println(err)
+			log.Println(err, resp.String())
 		}
 	}
 }
@@ -715,10 +721,12 @@ func (a *APIClient) chooseCourseRaw(cfg *APIConfig, co *CustomCourseDic, ctx con
 		}
 		if cfg.xkkz_id != "" {
 			formData["xkkz_id"] = cfg.xkkz_id
-		}
-		if cfg.xkkz_xh != "" {
+		} else {
 			formData["xkkz_xh"] = cfg.xkkz_xh
 		}
+		//if cfg.xkkz_xh != "" {
+		//	formData["xkkz_xh"] = cfg.xkkz_xh
+		//}
 		loginWg.Wait()
 		resp, err := a.hedgeC.R().
 			SetQueryParams(map[string]string{
@@ -748,20 +756,19 @@ func (a *APIClient) chooseCourseRaw(cfg *APIConfig, co *CustomCourseDic, ctx con
 			time.Sleep(1 * time.Second)
 			continue
 		}
+		if a.LoginCheck(resp) {
+		} else {
+			loginWg.Add(1)
+			a.ReLogin()
+			loginWg.Done()
+			continue
+		}
 		if err := json.Unmarshal(resp.Bytes(), &result); err != nil {
-			fmt.Println(err)
+			fmt.Println(err, resp.String())
 			log.Println(err, resp.String())
 			continue
 		}
-		if a.LoginCheck(resp) {
-			//log.Println("chooseCourse:", result.Flag, result.Msg)
-			return result
-		}
-
-		loginWg.Add(1)
-		a.ReLogin()
-		loginWg.Done()
-		continue
+		return result
 	}
 }
 
@@ -845,19 +852,19 @@ func (a *APIClient) getHaveSelectedList(xkxnm, xkxqm string) []ChosenDic {
 			log.Println("getHaveChoosedList 状态码:", resp.Status())
 			continue
 		}
-		if err := json.Unmarshal(resp.Bytes(), &result); err != nil {
-			fmt.Println(err)
-			log.Println(err, resp.String())
+		if a.LoginCheck(resp) {
+		} else {
+			a.ReLogin()
 			continue
 		}
 
-		if a.LoginCheck(resp) {
-			log.Printf("已选课程查询: \n%s", resp.String())
-			return result
+		if err := json.Unmarshal(resp.Bytes(), &result); err != nil {
+			fmt.Println(err, resp.String())
+			log.Println(err, resp.String())
+			continue
 		}
-
-		a.ReLogin()
-		continue
+		log.Printf("已选课程查询: \n%s", resp.String())
+		return result
 	}
 }
 

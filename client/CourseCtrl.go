@@ -68,14 +68,13 @@ func (a *APIClient) GetCourseCtl(modeCode string) {
 	var cfg APIConfig
 	var code string
 	cfg.needInit = true
+	first := true
 	// var tkList CustomCourseDic
 	// tkList.Jxbmc = "/**-**/"
 	sCustL := NewCustomCourseSlice()
-	//cfg.njdm_id_list0 = "20" + a.account[:2]
-	// cfg.njdm_id_list = "2023"
 	cfg.wantClassList, cfg.wantTeacherList, cfg.wantTypeList = config.ReadExcel(a.Config.Want)
 	cfg.startTimeStamp = readStartTimeConfig()
-	cfg.smtpConfig = utils.SMTPReadConfig()
+	a.Smtp = utils.SMTPReadConfig()
 	cfg.modeName = "(未初始化)"
 	for {
 		if modeCode != "" {
@@ -101,7 +100,7 @@ func (a *APIClient) GetCourseCtl(modeCode string) {
 		case "4", "jl", "5", "xk2":
 			if !cfg.needInit && len(sCustL.items) != 0 {
 				// 已经初始化之后，列表中有课，设置退课
-				a.setQuitCourse(&cfg)
+				first = false
 			}
 		case "clear":
 			sCustL = NewCustomCourseSlice()
@@ -138,6 +137,7 @@ func (a *APIClient) GetCourseCtl(modeCode string) {
 					}
 					fmt.Printf("距离选课结束还有 \033[1;36m%s\033[0m 天 共 \033[1;36m%s\033[0m 小时\n", cfg.syts, cfg.syxs)
 					log.Printf("距离选课结束还有 %s 天 共 %s 小时", cfg.syts, cfg.syxs)
+					fmt.Println(cfg.xkjssj)
 
 					switch code {
 					case "1", "xk", "4", "jl", "5", "xk2":
@@ -206,9 +206,9 @@ func (a *APIClient) GetCourseCtl(modeCode string) {
 		case "3", "tk":
 			a.quitSelected(&cfg)
 		case "4", "jl":
-			a.JL(&cfg, sCustL, false)
+			a.JL(&cfg, sCustL, false, first)
 		case "5", "xk2":
-			a.JL(&cfg, sCustL, true)
+			a.JL(&cfg, sCustL, true, first)
 		case "7":
 		case "boom":
 			a.Boom(&cfg, sCustL)
@@ -219,22 +219,21 @@ func (a *APIClient) GetCourseCtl(modeCode string) {
 	}
 }
 
-func (a *APIClient) setQuitCourse(cfg *APIConfig) {
-	// tkList.Jxbmc = "/**-**/"
+func (a *APIClient) setQuitCourse(cfg *APIConfig) CustomCourseDic {
+	var tkDic CustomCourseDic
+	tkDic.Jxbmc = "/**-**/"
 	input, err := utils.UserInputWithSigInt("是否设置退课(y/N):")
-	//var input string
-	//fmt.Printf("是否设置退课(y/n默认):")
-	//_, err := fmt.Scanln(&input)
 	if err != nil {
-		return
+		return tkDic
 	}
 	input = strings.TrimSpace(input)
 	input = strings.ToLower(input)
 	if strings.Contains(input, "y") {
 		fmt.Println(cfg.xkxnm, cfg.xkxqm)
-		a.quitSelectedNormal(cfg)
+		return a.quitSelectedNormal(cfg)
 		// fmt.Println("功能没做好")
 	}
+	return tkDic
 }
 
 func (a *APIClient) Other(cfg *APIConfig) {
@@ -261,7 +260,8 @@ li.load_index.
 load.从教务系统获取剩余参数
 cookie.
 exam.
-********************************`+"\n", len(cfg.modeStore), cfg.smtpConfig.Enable, cfg.yl, a.Http.Timeout().Seconds(), a.Config.Account)
+dev.开发者模式
+********************************`+"\n", len(cfg.modeStore), a.Smtp.Enable, cfg.yl, a.Http.Timeout().Seconds(), a.Config.Account)
 		code, err = utils.UserInputWithSigInt("请输入功能代码(-1 退出其他):")
 		if err != nil {
 			return
@@ -275,14 +275,14 @@ exam.
 		case "1":
 			a.setMode(cfg)
 		case "2":
-			if cfg.smtpConfig.Enable {
-				cfg.smtpConfig.Enable = false
+			if a.Smtp.Enable {
+				a.Smtp.Enable = false
 			} else {
-				cfg.smtpConfig = utils.SMTPReadConfig()
-				cfg.smtpConfig.Enable = true
-				fmt.Println(cfg.smtpConfig.Host, cfg.smtpConfig.Port)
-				fmt.Println(cfg.smtpConfig.From)
-				fmt.Println(cfg.smtpConfig.To)
+				a.Smtp = utils.SMTPReadConfig()
+				a.Smtp.Enable = true
+				fmt.Println(a.Smtp.Host, a.Smtp.Port)
+				fmt.Println(a.Smtp.From)
+				fmt.Println(a.Smtp.To)
 			}
 		case "3":
 			if cfg.yl {
@@ -325,10 +325,10 @@ exam.
 				fmt.Println("🚨不限制退课，你解锁了禁忌功能🚨")
 			}
 		case "mail":
-			if cfg.smtpConfig.Enable {
+			if a.Smtp.Enable {
 				smtpContent := "<b>%s\n%s</b>"
 				fmt.Println("Send mail 📧")
-				utils.SendMail(cfg.smtpConfig, "选课提醒测试", fmt.Sprintf(smtpContent, "*-选课成功✅?-*-", "游戏电竞课"))
+				a.Smtp.SendMail("选课提醒测试", fmt.Sprintf(smtpContent, "*-选课成功✅?-*-", "游戏电竞课"))
 			}
 		case "gpa":
 			a.getGPA()
@@ -649,7 +649,7 @@ func (a *APIClient) Boom(cfg *APIConfig, cust *SafeCustomCourseSlice) {
 	wg.Wait()
 }
 
-func (a *APIClient) JL(cfg *APIConfig, cust *SafeCustomCourseSlice, single bool) {
+func (a *APIClient) JL(cfg *APIConfig, cust *SafeCustomCourseSlice, single, first bool) {
 	fmt.Println("Ctrl+C 退出")
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
@@ -688,7 +688,11 @@ func (a *APIClient) JL(cfg *APIConfig, cust *SafeCustomCourseSlice, single bool)
 			var tkDic CustomCourseDic
 
 			// tkDic := tkList
-			tkDic.Jxbmc = "/**-**/"
+			if first {
+				tkDic.Jxbmc = "/**-**/"
+			} else {
+				a.setQuitCourse(cfg)
+			}
 			var successQuit bool
 			if cust.items[0].Do_jxb_id == "" {
 				// get detail
@@ -741,11 +745,11 @@ func (a *APIClient) JL(cfg *APIConfig, cust *SafeCustomCourseSlice, single bool)
 							// 选课成功，根据条件判断是否继续或退出
 							if checkRank(cfg, cust.items[index].Jxbmc) == 0 || single {
 								// 当选到第一志愿的课时可以返回
-								if cfg.smtpConfig.Enable {
-									smtpContent := "<b>%s\n%s</b>"
-									go utils.SendMail(cfg.smtpConfig, "选课提醒", fmt.Sprintf(smtpContent, "*-选课成功✅-*-", cust.items[index].Jxbmc))
-								}
 								return
+							}
+							if a.Smtp.Enable {
+								smtpContent := "<b>%s\n%s</b>"
+								go a.Smtp.SendMail("选课提醒", fmt.Sprintf(smtpContent, "*-选课成功✅-*-", cust.items[index].Jxbmc))
 							}
 							tkDic.Jxbmc = cust.items[index].Jxbmc
 							tkDic.Do_jxb_id = cust.items[index].Do_jxb_id
@@ -769,9 +773,10 @@ func (a *APIClient) JL(cfg *APIConfig, cust *SafeCustomCourseSlice, single bool)
 								chCResult := a.chooseCourseWithPlaySound(cfg, &tkDic, sigCh)
 								fmt.Println("选回退课:", chCResult)
 								log.Println("选回退课:", chCResult)
-								// if chCResult.Flag == "1" {
-								// 	successQuit = false
-								// }
+								if a.Smtp.Enable {
+									smtpContent := "<b>%s\n%s</b>"
+									go a.Smtp.SendMail("选课提醒", fmt.Sprintf(smtpContent, "*-选课-*-", chCResult))
+								}
 								successQuit = false
 							}
 						}
@@ -782,7 +787,7 @@ func (a *APIClient) JL(cfg *APIConfig, cust *SafeCustomCourseSlice, single bool)
 				fmt.Printf("\r%s 正在进行课程查询...", sign)
 				needEnter = true
 				signNum += 1
-				time.Sleep(700 * time.Millisecond)
+				time.Sleep(440 * time.Millisecond)
 				list := a.getCourseList(ctx, cfg)
 				if errors.Is(ctx.Err(), context.Canceled) || len(list) == 0 {
 					return
@@ -857,9 +862,9 @@ func (a *APIClient) JL(cfg *APIConfig, cust *SafeCustomCourseSlice, single bool)
 									tryCount += 1
 									continue
 								} else if succCh && single {
-									if cfg.smtpConfig.Enable {
+									if a.Smtp.Enable {
 										smtpContent := "<b>%s\n%s</b>"
-										go utils.SendMail(cfg.smtpConfig, "选课提醒", fmt.Sprintf(smtpContent, "*-选课成功✅-*-", cust.items[i].Jxbmc))
+										go a.Smtp.SendMail("选课提醒", fmt.Sprintf(smtpContent, "*-选课成功✅-*-", cust.items[i].Jxbmc))
 									}
 									return
 								} else if chooseResult.Flag == "0" {
@@ -877,9 +882,9 @@ func (a *APIClient) JL(cfg *APIConfig, cust *SafeCustomCourseSlice, single bool)
 								//	}
 								//}
 								if tryCount >= 20 && succCh {
-									if cfg.smtpConfig.Enable {
+									if a.Smtp.Enable {
 										smtpContent := "<b>%s\n%s</b>"
-										go utils.SendMail(cfg.smtpConfig, "选课提醒", fmt.Sprintf(smtpContent, "*-选课成功✅-*-", cust.items[i].Jxbmc))
+										go a.Smtp.SendMail("选课提醒", fmt.Sprintf(smtpContent, "*-选课成功✅-*-", cust.items[i].Jxbmc))
 									}
 									return
 								}

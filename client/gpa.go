@@ -11,8 +11,9 @@ import (
 func (a *APIClient) getGPA() {
 	resp, err := a.Http.R().
 		SetRetryCount(0).
-		SetTimeout(time.Second*19).
+		//SetTimeout(time.Second*19).
 		SetQueryParam("gnmkdm", "N105515").
+		SetResponseDoNotParse(true).
 		Get(baseCfg.AcademiaIndex)
 	if err != nil {
 		fmt.Println(err)
@@ -21,8 +22,12 @@ func (a *APIClient) getGPA() {
 		fmt.Println(resp.Status())
 		fmt.Println(resp.Duration())
 	}
-	if resp.IsStatusFailure() {
-		GPA.GPA(resp.String())
+	if resp.IsStatusSuccess() {
+		GPA.GPA(resp.Body)
+		//GPA.GPA(resp.String())
+	}
+	if resp.Body != nil {
+		_ = resp.Body.Close()
 	}
 	//log.Println(utils.RemoveEmptyLines(resp.String()))
 }

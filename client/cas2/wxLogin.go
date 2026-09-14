@@ -23,6 +23,7 @@ func NewCasWX(account, password string) *Client {
 		//SetUserAgent(config.ChromeUA).
 		SetHeader("user-agent", config.ChromeUA).
 		SetRedirectPolicy(resty.RedirectNoPolicy())
+	client.SetRateLimiter(resty.NewRateLimitSlidingWindow(10, 4*time.Second))
 	//client.SetProxyURL("http://127.0.0.1:8866")
 
 	hash := md5.Sum([]byte(account + "salt354waragthaswrg"))
@@ -197,7 +198,7 @@ func (c *Client) GetScanResultCode(uuid string) string {
 		}
 		//window.wx_errcode=405;window.wx_code='0117xIkl2JDozg4nZEkl2oVrZT37xIkl';
 		if strings.Contains(result, `window.wx_code='`) {
-			wxCode := strings.Split(strings.Split(result, `window.wx_code='`)[1], "';")[0]
+			wxCode, _, _ := strings.Cut(strings.Split(result, `window.wx_code='`)[1], "';")
 			log.Println("wxCode:", wxCode)
 			return wxCode
 		}
@@ -273,8 +274,9 @@ func (c *Client) WxLoginFinal(wxCode, state string) (string, bool, string) {
 		log.Fatal("ticket is null")
 	}
 	log.Println("ticketJWT:", ticketJWT)
-
-	idToken, err1 := utils.ExtractIDToken(ticketJWT)
+	var idToken string
+	var err1 error
+	idToken, c.nextLoginTimeExp, c.Account, err1 = utils.ExtractIDToken(ticketJWT)
 	if err1 != nil {
 		fmt.Printf("错误: %v\n", err1)
 		log.Println("ticketJWT:", ticketJWT)
@@ -286,7 +288,8 @@ func (c *Client) WxLoginFinal(wxCode, state string) (string, bool, string) {
 	c.portalHttp.SetHeader("x-device-info", "PC")
 	c.portalHttp.SetHeader("x-terminal-info", "PC")
 	c.portalHttp.SetHeader("cookie", "isLogin=true")
-	c.nextLoginTimeExp, c.Account = utils.ExtractExpManual(ticketJWT)
 	log.Println("当前账号:", c.Account)
+	c.fCfg.TicketJWT = ticketJWT
+	c.fCfg.WriteConfig()
 	return idToken, true, location4
 }

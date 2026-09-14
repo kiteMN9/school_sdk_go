@@ -1,7 +1,7 @@
 package client
 
 import (
-	"encoding/json"
+	"encoding/json/v2"
 	"fmt"
 	"log"
 	baseCfg "school_sdk/config"
@@ -11,12 +11,12 @@ import (
 
 func (a *APIClient) GetJsonInfo() UserInfo {
 	var result UserInfo
-	resp, err := a.Http.R().
+	resp, err := a.hedgeC.R().
 		SetTimeout(12 * time.Second).
 		//SetResult(&result).
 		SetQueryParams(map[string]string{
 			"gnmkdm": "N100801",
-			"su":     a.Config.Account,
+			//"su":     a.Config.Account,
 		}).Get(baseCfg.InfoJson)
 	if err != nil {
 		fmt.Println(err)
@@ -55,8 +55,8 @@ func PrintStudentInfo2(info UserInfo) {
 		return
 	}
 	//fmt.Printf("姓名:%-3s 班级:%-6s 学号:%-6s 毕业学校:%s\n", info.Xm, info.BhId, info.XhId, info.Byzx)
-	fmt.Printf("%-3s %-6s %-6s %-1s 毕业学校:%s\n", info.Xm, info.BhId, info.XhId, info.Xbm, info.Byzx)
-	fmt.Printf("学院:%-6s 年级:%-4s\n", info.JgId, info.NjdmId)
+	fmt.Printf("%-3s %-6s %-6s %-1s %s\n", info.Xm, info.BhId, info.XhId, info.Xbm, info.Byzx)
+	fmt.Printf("%-6s 年级:%-4s\n", info.JgId, info.NjdmId)
 }
 
 type UserInfo struct {
@@ -150,10 +150,29 @@ func (a *APIClient) GetRawInfo() []byte {
 		SetQueryParams(map[string]string{
 			"gnmkdm": "N100801",
 			//"layout": "default",
-			"su": a.Config.Account,
+			//"su": a.Config.Account,
 		}).
 		Get(baseCfg.InfoHtm)
 	//Get(baseCfg.PersonalInfo)
+
+	if err != nil {
+		fmt.Println(err)
+	}
+	if a.LoginCheck(resp) {
+	} else {
+		fmt.Println(resp.Status())
+		a.ReLogin()
+	}
+	return resp.Bytes()
+}
+
+func (a *APIClient) GetPhoto() []byte {
+	resp, err := a.Http.R().
+		SetQueryParams(map[string]string{
+			"xh_id": a.Config.Account,
+			"zplx":  "rxqzp",
+		}).
+		Get(baseCfg.StudentPhoto)
 
 	if err != nil {
 		fmt.Println(err)

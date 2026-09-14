@@ -9,14 +9,16 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net/http/cookiejar"
+	"net/http"
 	"net/url"
 	"os"
 	"school_sdk/client/cas2/utils"
-	"school_sdk/config"
+	"school_sdk/client/config"
+	"school_sdk/client/internal"
+	bcfg "school_sdk/config"
+	"strings"
 	"time"
 
-	"github.com/antchfx/htmlquery"
 	"golang.org/x/net/html"
 	"resty.dev/v3"
 )
@@ -30,18 +32,32 @@ type Client struct {
 	//LoggedIn      bool
 	enableWxLogin    bool
 	nextLoginTimeExp time.Time
+	fCfg             *config.Data
 }
 
-func NewCas(account, password, UA string, wx bool) *Client {
+func NewCas(account, password, UA string, wx bool, fCfg *config.Data) *Client {
 	if UA == "" {
-		UA = config.EdgeUA
+		UA = bcfg.EdgeUA
 	}
-	client := resty.New()
+	client := resty.NewWithTransportSettings(&resty.TransportSettings{
+		IdleConnTimeout:       68 * time.Second,
+		ResponseHeaderTimeout: 31 * time.Second,
+		MaxIdleConnsPerHost:   8,
+	})
 	client.SetBaseURL("https://cas2.ycit.edu.cn/").
 		SetHeader("user-agent", UA).
-		SetRedirectPolicy(resty.RedirectNoPolicy())
-
+		SetRedirectPolicy(resty.RedirectPolicyFunc(func(req *http.Request, via []*http.Request) error {
+			if req.Response != nil {
+				if req.Response.StatusCode == http.StatusMovedPermanently {
+					return nil
+				}
+			}
+			return http.ErrUseLastResponse
+		}))
+	client.AddContentDecompresser("br", internal.DecompressBrotli)
+	client.SetTimeout(time.Second * 33)
 	client.SetRetryCount(1).AddRetryConditions(resty.RetryConditionStatus5XX)
+	client.SetRateLimiter(resty.NewRateLimitSlidingWindow(10, 4*time.Second))
 
 	if os.Getenv("trace") == "1" {
 		client.SetTrace(true)
@@ -50,23 +66,36 @@ func NewCas(account, password, UA string, wx bool) *Client {
 	if os.Getenv("proxy") == "1" {
 		//.EnableInsecureSkipVerify()
 		client.SetProxy("http://127.0.0.1:8866")
+		tls_ := client.TLSClientConfig()
+		tls_.InsecureSkipVerify = true
 	}
 
+	// 共享transport
 	portalHttp := client.Clone(context.Background()).
-		SetBaseURL("https://portal.ycit.edu.cn/").
-		SetHeader("user-agent", UA).
-		SetRedirectPolicy(resty.RedirectNoPolicy())
+		SetBaseURL("https://portal.ycit.edu.cn/")
 
-	portalHttp.SetRetryCount(1).AddRetryConditions(resty.RetryConditionStatus5XX)
-
-	if os.Getenv("trace") == "1" {
-		portalHttp.SetTrace(true)
-		//client.SetLogger()
-	}
-	if os.Getenv("proxy") == "1" {
-		portalHttp.SetProxy("http://127.0.0.1:8866")
-		tls := client.TLSClientConfig()
-		tls.InsecureSkipVerify = true
+	if fCfg.TicketJWT != "" {
+		idToken, nextLoginTimeExp, Account, err1 := utils.ExtractIDToken(fCfg.TicketJWT)
+		if err1 == nil && time.Now().Before(nextLoginTimeExp) {
+			portalHttp.SetHeader("x-id-token", idToken)
+			portalHttp.SetHeader("x-device-info", "PC")
+			portalHttp.SetHeader("x-terminal-info", "PC")
+			portalHttp.SetHeader("cookie", "isLogin=true")
+			hash := md5.Sum([]byte(Account + "salt354waragthaswrg"))
+			md5Str := hex.EncodeToString(hash[:])
+			return &Client{
+				Account:          account,
+				password:         password,
+				fpVisitorId:      md5Str, // fingerprint
+				http:             client,
+				portalHttp:       portalHttp,
+				enableWxLogin:    wx,
+				nextLoginTimeExp: nextLoginTimeExp,
+				fCfg:             fCfg,
+			}
+		}
+		fCfg.TicketJWT = ""
+		fCfg.WriteConfig()
 	}
 
 	hash := md5.Sum([]byte(account + "salt354waragthaswrg"))
@@ -80,6 +109,7 @@ func NewCas(account, password, UA string, wx bool) *Client {
 		http:          client,
 		portalHttp:    portalHttp,
 		enableWxLogin: wx,
+		fCfg:          fCfg,
 	}
 }
 
@@ -103,14 +133,61 @@ func (c *Client) Login() bool {
 	//c.LoggedIn = false
 	fmt.Println("清空cookie")
 	log.Println("清空cookie")
-	jar, _ := cookiejar.New(nil)
-	c.http.SetCookieJar(jar)
+	u, _ := url.Parse(c.http.BaseURL())
+	c.http.CookieJar().SetCookies(u, []*http.Cookie{})
 	return false
 }
 
-func getXpathValue(docNode *html.Node, name string) string {
-	nodes := htmlquery.FindOne(docNode, `//*[@name="`+name+`"]`)
-	return htmlquery.SelectAttr(nodes, "value")
+func extractLoginParams(body io.ReadCloser) (execution, failN string, err error) {
+	if body == nil {
+		return "", "", errors.New("body is nil")
+	}
+	defer func(body io.ReadCloser) {
+		_ = body.Close()
+	}(body)
+	tokenizer := html.NewTokenizer(io.LimitReader(body, 34000))
+
+	for {
+		tt := tokenizer.Next()
+		switch tt {
+		case html.ErrorToken:
+			// 遇到错误（如 EOF）则结束
+			if tokenizer.Err() == io.EOF {
+				return execution, failN, nil
+			}
+			return execution, failN, tokenizer.Err()
+		case html.StartTagToken, html.SelfClosingTagToken:
+			// 只处理 <input> 标签（自闭合或开始标签）
+			tagName, _ := tokenizer.TagName()
+			if !bytes.Equal(tagName, []byte("input")) {
+				continue
+			}
+			// 遍历属性
+			var name, value string
+			for {
+				key, val, moreAttr := tokenizer.TagAttr()
+				if bytes.Equal(key, []byte("name")) {
+					name = string(val)
+				} else if bytes.Equal(key, []byte("value")) {
+					value = string(val)
+				}
+				if !moreAttr {
+					break
+				}
+			}
+			if name == "execution" {
+				execution = value
+			} else if name == "failN" {
+				failN = value
+			}
+			// 如果两个值都找到了，可以提前结束（但需注意 tokenizer 可能还有后续，但我们可以返回）
+			if execution != "" && failN != "" {
+				return execution, failN, nil
+			}
+		default:
+			continue
+		}
+	}
 }
 
 func (c *Client) getHtml() string {
@@ -118,8 +195,11 @@ func (c *Client) getHtml() string {
 		resp, err := c.http.R().
 			SetQueryParam("service", "https://portal.ycit.edu.cn/?path=https://portal.ycit.edu.cn/main.html#/").
 			SetRetryCount(1).
+			SetResponseDoNotParse(true).
 			Get("/cas/login")
+
 		if err != nil {
+			// 错误处理（注意 resp 可能为 nil，此时不能调用 resp.Body.Close）
 			if errors.Is(err, context.DeadlineExceeded) {
 				fmt.Println("cas getHtml 请求超时", resp.Duration())
 				continue
@@ -128,34 +208,33 @@ func (c *Client) getHtml() string {
 				fmt.Println(err)
 				time.Sleep(3 * time.Second)
 				continue
-			} else {
-				log.Println("cas getHtml 请求失败:", err)
-				fmt.Println(err)
 			}
+			log.Println("cas getHtml 请求失败:", err)
+			fmt.Println(err)
 			time.Sleep(1 * time.Second)
 			continue
 		}
-		if resp.IsStatusFailure() {
-			fmt.Println(resp.Status())
-			time.Sleep(2 * time.Second)
-			continue
+		if resp.IsStatusSuccess() {
+			execution, failN, parseErr := extractLoginParams(resp.Body)
+			if parseErr != nil {
+				fmt.Println(parseErr)
+				continue
+			}
+
+			if failN != "-1" && failN != "0" {
+				fmt.Println("failN:", failN, "，有一定失败次数")
+				time.Sleep(2 * time.Second)
+			}
+			if execution != "" {
+				//fmt.Println(time.Since(start))
+				return execution
+			}
 		}
-		docNode, err1 := htmlquery.Parse(bytes.NewReader(resp.Bytes()))
-		//docNode, err1 := htmlquery.Parse(resp.Body)
-		if err1 != nil {
-			time.Sleep(1 * time.Second)
-			continue
+		if resp.Body != nil {
+			_ = resp.Body.Close()
 		}
-		execution := getXpathValue(docNode, "execution")
-		failN := getXpathValue(docNode, "failN")
-		log.Println("failN:", failN)
-		if failN != "-1" && failN != "0" {
-			fmt.Println("failN:", failN)
-			fmt.Println("有一定的失败次数，这可能导致验证码变成必须项")
-			log.Println("有一定的失败次数，这可能导致验证码变成必须项", failN)
-			time.Sleep(2 * time.Second)
-		}
-		return execution
+		// 如果没有拿到 execution，继续循环
+		time.Sleep(1 * time.Second)
 	}
 }
 
@@ -230,14 +309,14 @@ func (c *Client) getQrCode() []byte {
 func (c *Client) postLogin(encryptResult, execution string) bool {
 	for range 5 {
 		resp, err := c.http.R().
-			//SetRetryCount(1).
-			//SetRetryAllowNonIdempotent(true).
+			SetRetryCount(1).
+			SetRetryAllowNonIdempotent(true).
 			SetQueryParam("service", "https://portal.ycit.edu.cn/?path=https://portal.ycit.edu.cn/main.html#/").
 			SetFormData(map[string]string{
 				"username":    c.Account,
 				"password":    encryptResult,
 				"captcha":     "",
-				"currentMenu": "",
+				"currentMenu": "1",
 				"failN":       "0",
 				"mfaState":    "",
 				"execution":   execution,
@@ -257,7 +336,8 @@ func (c *Client) postLogin(encryptResult, execution string) bool {
 		case 302:
 			location := resp.Header().Get("Location")
 			if location == "" {
-				log.Fatal("location is null")
+				log.Println("cas2 postLogin 302 location is null")
+				return false
 			}
 
 			// 解析 location
@@ -268,41 +348,47 @@ func (c *Client) postLogin(encryptResult, execution string) bool {
 			if ticketJWT == "" {
 				log.Fatal("ticketJWT is null")
 			}
-
-			fmt.Println("cas2登录成功")
-			fmt.Println("====点击下方连接可访问门户=============")
-			fmt.Println(location)
-			fmt.Println("====点击上方连接可访问门户=============")
-
-			log.Println("====点击下方连接可访问门户==============")
-			log.Println(location)
-			log.Println("====点击上方连接可访问门户==============")
-
 			//fmt.Println("ticketJWT:", ticketJWT)
-
 			// 从 ticketJWT 提取 idToken 作为x-id-token
 			// ticket分成三段，中间的base64解码后得到json里的idToken是结果
-			idToken, err1 := utils.ExtractIDToken(ticketJWT)
+			var idToken string
+			var err1 error
+			idToken, c.nextLoginTimeExp, c.Account, err1 = utils.ExtractIDToken(ticketJWT)
 			if err1 != nil {
 				fmt.Printf("错误: %v\n", err1)
 				log.Println("ticketJWT:", ticketJWT)
 				log.Println("ticket解析失败:", err1)
 				return false
 			}
+			fmt.Println("cas2登录成功✅")
+			fmt.Println("====点击下方连接可访问门户=============")
+			fmt.Println(location)
+			fmt.Println("====点击上方连接可访问门户=============")
+
+			log.Println("====点击下方连接可访问门户==============")
+			log.Println("\n", location)
+			log.Println("====点击上方连接可访问门户==============")
+
 			// portal header
 			c.portalHttp.SetHeader("x-id-token", idToken)
 			c.portalHttp.SetHeader("x-device-info", "PC")
 			c.portalHttp.SetHeader("x-terminal-info", "PC")
 			c.portalHttp.SetHeader("cookie", "isLogin=true")
-			c.nextLoginTimeExp, c.Account = utils.ExtractExpManual(ticketJWT)
+			c.fCfg.TicketJWT = ticketJWT
+			c.fCfg.WriteConfig()
 			return true
 		case 200:
-			fmt.Println("不成功，登录实现有问题", resp.Status())
-			time.Sleep(time.Second * 12)
+			if strings.Contains(resp.String(), "这个账户已经被锁住了。") {
+				fmt.Println("这个账户已经被锁住了。")
+			} else {
+				fmt.Println("不成功，登录实现有问题", resp.Status())
+				log.Println("不成功，登录实现有问题", resp.Status(), resp.String())
+				time.Sleep(time.Second * 12)
+			}
 		case 401:
-			fmt.Println("账户或密码错误？")
+			fmt.Println("cas2 账户或密码错误 401")
 			time.Sleep(3 * time.Second)
-			panic("账户或密码错误")
+			os.Exit(0)
 		case 500:
 			log.Println("postLogin status:", resp.Status())
 			log.Println(resp.String())

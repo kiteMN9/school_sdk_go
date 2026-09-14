@@ -44,9 +44,34 @@ func SaveImg(img image.Image, path, msg string) {
 		log.Println(err1)
 		return
 	}
-	defer outFile.Close()
 	err2 := png.Encode(outFile, img)
 	if err2 != nil {
+		_ = outFile.Close()
+		return
+	}
+	_ = outFile.Close()
+}
+
+func SaveFile(path, fileName string, data []byte) {
+	if !IsExist(path) {
+		err := os.Mkdir(path, 0777)
+		if err != nil {
+			return
+		}
+	}
+	finalPath := path + "/" + fileName
+	dstFile, err := os.Create(finalPath)
+	if err != nil {
+		fmt.Println(err.Error())
+		return
+	}
+	_, err = dstFile.Write(data)
+	if err != nil {
+		_ = dstFile.Close()
+		return
+	}
+	err = dstFile.Close()
+	if err != nil {
 		return
 	}
 }

@@ -1,14 +1,14 @@
 package config
 
 const (
-	LoginIndex  = "/xtgl/login_slogin.html"        // 登录页
-	MENU        = "/xtgl/index_initMenu.html"      // 首页
-	CAPTCHA     = "/zfcaptchaLogin"                // 登录滑块验证码
-	KAPTCHA     = "/kaptcha"                       // 登录图形验证码
-	PublicKey   = "/xtgl/login_getPublicKey.html"  // 登录公钥获取
-	LOGOUT      = "/logout"                        // 登出
-	LOGOUT2     = "/xtgl/login_logoutAccount.html" // 正方9.0登录会有
-	Language    = "/xtgl/init_changeLocal.html"    // body里language=en_US zh_CN
+	LoginIndex = "/xtgl/login_slogin.html"       // 登录页
+	MENU       = "/xtgl/index_initMenu.html"     // 首页
+	CAPTCHA    = "/zfcaptchaLogin"               // 登录滑块验证码
+	KAPTCHA    = "/kaptcha"                      // 登录图形验证码
+	PublicKey  = "/xtgl/login_getPublicKey.html" // 登录公钥获取
+	LOGOUT     = "/logout"                       // 登出
+	//LOGOUT2     = "/xtgl/login_logoutAccount.html" // 正方9.0登录会有
+	Language    = "/xtgl/init_changeLocal.html" // body里language=en_US zh_CN
 	LoginStatus = "/xtgl/index_cxGxDlztxx.html"
 )
 
@@ -16,7 +16,7 @@ const (
 	StudentName = "/xtgl/index_cxYhxxIndex.html"
 	Kbcx        = "/kbcx/xskbcx_cxXsgrkb.html"
 	//Notifications = "/xtgl/index_cxDbsy.html" // 一些通知
-	//StudentPhoto = "/xtgl/photo_cxXszp.html" // null,4学生大头照; 2 null, 3无上传照片权限
+	StudentPhoto = "/xtgl/photo_cxXszp.html" // null,4学生大头照; 2 null, 3无上传照片权限
 
 	InfoHtm  = "/xsxxxggl/xsgrxxwh_cxXsgrxx.html" // 个人信息获取 HTML
 	InfoJson = "/xsxxxggl/xsxxwh_cxCkDgxsxx.html"

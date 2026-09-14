@@ -36,7 +36,7 @@ func (a *APIClient) Logout() string {
 
 	// fmt.Println(resp.String()
 	bodyString := resp.String()
-	if utils.UserIsLogin(a.Config.Account, bodyString) && !a.CheckLogout302(resp) {
+	if !a.CheckLogout302(resp) && utils.UserIsLogin(a.Config.Account, bodyString) {
 		fmt.Println("退出失败")
 	} else {
 		fmt.Println("退出成功")

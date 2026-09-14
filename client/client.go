@@ -10,7 +10,10 @@ import (
 	"os"
 	"school_sdk/client/cas2"
 	"school_sdk/client/config"
+	"school_sdk/client/hedge"
+	"school_sdk/client/internal"
 	baseCfg "school_sdk/config"
+	"school_sdk/utils"
 	"strings"
 	"time"
 
@@ -22,10 +25,12 @@ type APIClient struct {
 	Config           *config.Data
 	Name             string
 	Http             *resty.Client
+	hedgeC           *resty.Client
 	onlyCookieMethod bool
 	enableCas2       bool
 	cas2Client       *cas2.Client
 	lastRequestTime  time.Time
+	Smtp             *utils.SMTPConfig
 }
 
 func baseURLLegalCheck(baseURL string) string {
@@ -47,48 +52,90 @@ func baseURLLegalCheck(baseURL string) string {
 	return baseURL
 }
 
-func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) *resty.Client {
+func NewBasicClient(baseURL string, timeout time.Duration, fCfg *config.Data) (*resty.Client, *resty.Client) {
 	baseURLLegalCheck(baseURL)
-	client := resty.New().
-		SetRedirectPolicy(resty.RedirectNoPolicy()).
+	client := resty.NewWithTransportSettings(&resty.TransportSettings{
+		ResponseHeaderTimeout: 35 * time.Second,
+		DisableKeepAlives:     false,
+	}).
+		//SetRedirectPolicy(resty.RedirectNoPolicy()).
+		SetRedirectPolicy(resty.RedirectPolicyFunc(func(req *http.Request, via []*http.Request) error {
+			if req.Response != nil {
+				if req.Response.StatusCode == http.StatusMovedPermanently {
+					return nil
+				}
+			}
+			return http.ErrUseLastResponse
+		})).
 		SetBaseURL(baseURL)
+	client.Client().Timeout = 55 * time.Second //
 
 	if os.Getenv("proxy") == "1" {
 		client.SetProxy("http://127.0.0.1:8866")
-		tls := client.TLSClientConfig()
-		tls.InsecureSkipVerify = true
-		//client.SetCloseConnection(true)
+		if tls_ := client.TLSClientConfig(); tls_ != nil {
+			tls_.InsecureSkipVerify = true
+			//client.SetCloseConnection(true)
+		}
+		transport, err := client.HTTPTransport()
+		if err == nil {
+			transport.DisableKeepAlives = false
+		}
 	}
+
 	if os.Getenv("trace") == "1" {
 		client.SetTrace(true)
 	}
-
 	if timeout < 4*time.Second {
 		timeout = 4 * time.Second
 	}
-
-	client.SetTimeout(timeout) // 整个请求的超时时间
-	client.SetRetryCount(1).
+	client.SetTimeout(timeout) // ctx控制整个请求的超时时间包括读取响应体
+	client.SetRateLimiter(resty.NewRateLimitSlidingWindow(10, 4*time.Second))
+	client.SetRetryCount(3).
 		AddRetryConditions(resty.RetryConditionStatus5XX)
 
-	refer, err := JoinURL(baseURL, baseCfg.LoginIndex)
-	if err != nil {
-		log.Fatal(err)
-	}
-	client.SetHeader("Referer", refer)
-	client.SetHeader("Accept", "*/*")
+	//refer, err := JoinURL(baseURL, baseCfg.LoginIndex)
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//client.SetHeader("Referer", refer)
 	client.SetHeader("user-agent", fCfg.UserAgent)
 
-	// Add decompresser into Resty
-	client.AddContentDecompresser("br", decompressBrotli)
-	//client.AddContentDecompresser("zstd", decompressZstd)
+	client.AddContentDecompresser("br", internal.DecompressBrotli)
 
 	if strings.HasPrefix(fCfg.BaseURL, "https://") {
 		if transport, _ := client.HTTPTransport(); transport != nil {
 			transport.IdleConnTimeout = 68 * time.Second
 		}
+
 	}
-	return client
+	client.SetHeader("Connection", "keep-alive")
+
+	if fCfg.Hedging {
+		delay, err := time.ParseDuration(fCfg.HedgingDelay)
+		if err != nil {
+			delay = 16 * time.Second
+			fCfg.HedgingDelay = "16s"
+			fCfg.WriteConfig()
+		}
+		ht := hedge.NewHedging().
+			SetDelay(delay).
+			SetMaxRequest(3).
+			SetTransport(client.Transport())
+		hedgedClient := &http.Client{
+			Transport: ht,
+			Jar:       client.Client().Jar,
+			Timeout:   55 * time.Second,
+		}
+		htc := resty.NewWithClient(hedgedClient).SetBaseURL(baseURL).
+			SetTimeout(timeout).SetRedirectPolicy(resty.RedirectNoPolicy())
+		htc.SetRateLimiter(resty.NewRateLimitSlidingWindow(10, 4*time.Second))
+		//htc.SetHeader("Referer", refer)
+		htc.SetHeader("user-agent", fCfg.UserAgent)
+		htc.SetHeader("Connection", "keep-alive")
+		htc.AddContentDecompresser("br", internal.DecompressBrotli)
+		return client, htc
+	}
+	return client, client
 }
 
 func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, route string) *APIClient {
@@ -96,8 +143,7 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 	if err != nil {
 		log.Fatal(err)
 	}
-	client := NewBasicClient(cfg.BaseURL, timeout, cfg)
-
+	client, htc := NewBasicClient(cfg.BaseURL, timeout, cfg)
 	if route != "" {
 		cookie := &http.Cookie{ // 过 nginx有这个
 			Name:  "route",
@@ -108,17 +154,26 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 		routes := []string{
 			//"018f9ff65252ca4f51865070844ae0be", // 慢且cas登录失败
 			//"34ff17f478ebaa7e4063c9d5a95901d0", // 慢且cas登录失败
-			"425b918000ed5b18d10afb85fbbf8ec7", // 快
-			//"8ed16c15842922decba77aa1ed63b61f", // 快❌
+			//"425b918000ed5b18d10afb85fbbf8ec7", // 快
 			"c80e782f5a3340e86274809ce311b6b4", // 快
+			//"c8aa7be12690eaa40200741aded427f8", // 55.3428ms cas✅
+			"8ed16c15842922decba77aa1ed63b61f", // 52.1706ms cas✅
 		}
-		selected := routes[rand.Intn(len(routes))]
-
-		cookie := &http.Cookie{ // 过 nginx有这个
-			Name:  "route",
-			Value: selected, // 手动设置成一样的会有非常明显的挤号问题
+		if len(cfg.Routes) != 0 {
+			routes = cfg.Routes
 		}
-		client.CookieJar().SetCookies(u, []*http.Cookie{cookie})
+		if len(routes) != 0 {
+			selected := routes[rand.Intn(len(routes))]
+			cookie := &http.Cookie{ // 过 nginx有这个
+				Name:   "route",
+				Value:  selected, // 手动设置成一样的会有非常明显的挤号问题
+				Domain: "ycit.edu.cn",
+				Path:   "/",
+			}
+			log.Println("route:", selected)
+			fmt.Printf("route: (%s)\n", selected)
+			client.CookieJar().SetCookies(u, []*http.Cookie{cookie})
+		}
 	}
 
 	//transport, _ := client.HTTPTransport()
@@ -133,19 +188,21 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 	apiClient := &APIClient{
 		Config:     cfg,
 		Http:       client,
+		hedgeC:     htc,
 		enableCas2: isCas2 || WX,
 	}
 
 	if isCas2 || WX {
-		apiClient.cas2Client = cas2.NewCas(cfg.Account, cfg.CasPasswd, cfg.UserAgent, WX)
+		apiClient.cas2Client = cas2.NewCas(cfg.Account, cfg.CasPasswd, cfg.UserAgent, WX, cfg)
 		return apiClient
 	}
 	return apiClient
 }
 
 func NewClientWithCookieJar(cfg *config.Data, timeout time.Duration, jar *cookiejar.Jar) *APIClient {
-	client := NewBasicClient(cfg.BaseURL, timeout, cfg).
-		SetCookieJar(jar)
+	client, htc := NewBasicClient(cfg.BaseURL, timeout, cfg)
+	client.SetCookieJar(jar)
+	htc.SetCookieJar(jar)
 	client.SetHeader("user-agent", cfg.UserAgent)
 	//SetTLSFingerprintRandomized().
 	//client.SetProxyURL("http://127.0.0.1:8866")
@@ -156,21 +213,22 @@ func NewClientWithCookieJar(cfg *config.Data, timeout time.Duration, jar *cookie
 	return &APIClient{
 		Config:           cfg,
 		Http:             client,
+		hedgeC:           htc,
 		onlyCookieMethod: true,
 	}
 }
 
-func JoinURL(base, endpoint string) (string, error) {
-	baseURL, err := url.Parse(base)
-	if err != nil {
-		return "", err
-	}
-	endpointURL, err1 := url.Parse(endpoint)
-	if err1 != nil {
-		return "", err1
-	}
-	fullURL := baseURL.ResolveReference(endpointURL)
-	return fullURL.String(), nil
-}
+//func JoinURL(base, endpoint string) (string, error) {
+//	baseURL, err := url.Parse(base)
+//	if err != nil {
+//		return "", err
+//	}
+//	endpointURL, err1 := url.Parse(endpoint)
+//	if err1 != nil {
+//		return "", err1
+//	}
+//	fullURL := baseURL.ResolveReference(endpointURL)
+//	return fullURL.String(), nil
+//}
 
-var TERM = map[int]string{1: "3", 2: "12", 3: "16"}
+var TERM = map[int]string{0: "", 1: "3", 2: "12", 3: "16"}

@@ -502,6 +502,11 @@ func (a *APIClient) setMode(cfg *APIConfig) {
 		cfg.kklxdm = cfg.modeStore[index].Kklxdm
 		cfg.xkkz_id = cfg.modeStore[index].Xkkz_id
 		cfg.xkkz_xh = cfg.modeStore[index].Xkkz_xh
+		if cfg.modeStore[index].Xkkz_xh != "" {
+			cfg.njdm_id = cfg.modeStore[index].Njdm_id
+			cfg.njdm_id_list0 = cfg.modeStore[index].Njdm_id
+			cfg.zyh_id = cfg.modeStore[index].Zyh_id
+		}
 		fmt.Println("等待页签修改:", cfg.modeName)
 		a.getCourseListPre(context.Background(), cfg, false)
 		fmt.Println("页签设置为:", cfg.modeName)
@@ -1097,6 +1102,7 @@ func (a *APIClient) XK(cfg *APIConfig, cust *SafeCustomCourseSlice) {
 
 func refreshWant(cfg *APIConfig, xlsx string) {
 	log.Println("刷新愿望清单")
+	fmt.Println(xlsx)
 	cfg.wantClassList, cfg.wantTeacherList, cfg.wantTypeList = config.ReadExcel(xlsx)
 	fmt.Println("课程: [" + strings.Join(cfg.wantClassList, "; ") + "]")
 	fmt.Println("教师: [" + strings.Join(cfg.wantTeacherList, "; ") + "]")

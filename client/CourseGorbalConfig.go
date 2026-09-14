@@ -89,10 +89,14 @@ type APIConfig struct {
 	xztk       bool // 限制退课
 }
 
+// ModeStore zzxkYzb.js
+// function queryCourse(a_element,kklxdm,xkkz_id,njdm_id,zyh_id,xkkz_xh){}
 type ModeStore struct {
 	Kklxmc  string
-	Kklxdm  string `json:"kklxdm"` // 关键参数，区分不同类型选课  'kklxdm': '10'
+	Kklxdm  string
 	Xkkz_id string
+	Njdm_id string
+	Zyh_id  string
 	Xkkz_xh string
 }
 

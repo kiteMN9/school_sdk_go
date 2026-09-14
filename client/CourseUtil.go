@@ -41,6 +41,8 @@ func CheckTime(timeStr string) {
 	}
 }
 
+// zzxkYzb.js
+// function queryCourse(a_element,kklxdm,xkkz_id,njdm_id,zyh_id,xkkz_xh){}
 func parseKklxdmXkkz__(cfg *APIConfig, docNode *html.Node) {
 	nodes := htmlquery.Find(docNode, `*//ul/li/a`)
 	if len(nodes) != 0 {
@@ -67,13 +69,14 @@ func parseKklxdmXkkz__(cfg *APIConfig, docNode *html.Node) {
 			continue
 		}
 
-		// xkkz_id = strings.TrimSuffix(xkkz_id, "')")
 		var store ModeStore
 		store.Kklxmc = nameNode.Data
 		store.Kklxdm = parts[0]
 		store.Xkkz_id = parts[1]
-		if len(parts) >= 3 {
-			store.Xkkz_xh = parts[2] // TODO:
+		if len(parts) >= 5 {
+			store.Njdm_id = parts[3]
+			store.Zyh_id = parts[4]
+			store.Xkkz_xh = strings.TrimSuffix(parts[4], "')")
 		}
 		cfg.modeStore = append(cfg.modeStore, store)
 		//fmt.Println("store:", store)

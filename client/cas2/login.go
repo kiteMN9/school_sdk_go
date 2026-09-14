@@ -55,7 +55,7 @@ func NewCas(account, password, UA string, wx bool, fCfg *config.Data) *Client {
 			return http.ErrUseLastResponse
 		}))
 	client.AddContentDecompresser("br", internal.DecompressBrotli)
-
+	client.SetTimeout(time.Second * 33)
 	client.SetRetryCount(1).AddRetryConditions(resty.RetryConditionStatus5XX)
 	client.SetRateLimiter(resty.NewRateLimitSlidingWindow(10, 4*time.Second))
 

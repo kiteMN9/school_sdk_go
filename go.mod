@@ -5,7 +5,7 @@ go 1.27.0
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/PuerkitoBio/goquery v1.13.0
-	github.com/andybalholm/brotli v1.2.3
+	github.com/andybalholm/brotli v1.2.4
 	github.com/antchfx/htmlquery v1.3.6
 	github.com/disintegration/imaging v1.6.2
 	github.com/klauspost/compress v1.20.0

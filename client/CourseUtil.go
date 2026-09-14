@@ -72,7 +72,9 @@ func parseKklxdmXkkz__(cfg *APIConfig, docNode *html.Node) {
 		store.Kklxmc = nameNode.Data
 		store.Kklxdm = parts[0]
 		store.Xkkz_id = parts[1]
-		store.Xkkz_xh = "" // TODO:
+		if len(parts) >= 3 {
+			store.Xkkz_xh = parts[2] // TODO:
+		}
 		cfg.modeStore = append(cfg.modeStore, store)
 		//fmt.Println("store:", store)
 	}

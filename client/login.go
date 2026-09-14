@@ -205,7 +205,7 @@ func (a *APIClient) captchaControl(ctx context.Context, wg *sync.WaitGroup, Logi
 
 		fmt.Println(":( 滑块验证失败")
 		log.Println(":( 滑块验证失败")
-		check_code.SaveImgStream(imgStream, "fail/", "fail_"+strconv.Itoa(x)+"_"+strconv.FormatInt(time.Now().UnixMilli(), 10))
+		check_code.SaveFile("fail/", "fail_"+strconv.Itoa(x)+"_"+strconv.FormatInt(time.Now().UnixMilli(), 10)+".png", imgStream)
 		return false // 一般来说出现验证失败是cookie问题，所以要重新登录流程而不是重试验证码
 	}
 	return false
@@ -253,7 +253,8 @@ func (a *APIClient) getKaptchaImage() string {
 	//	fmt.Println(err)
 	//	return ""
 	//}
-	check_code.SaveImgStream(resp.Bytes(), "./", "kaptcha")
+	check_code.SaveFile("./", "kaptcha.png", resp.Bytes())
+	//check_code.SaveImgStream(resp.Bytes(), "./", "kaptcha")
 	fmt.Println("请查看 kaptcha.png")
 	input, err := utils.UserInputWithSigInt("输入验证码:")
 	if err != nil {

@@ -56,7 +56,7 @@ type APIConfig struct {
 	xz     string // 学制4年
 
 	mzm     string
-	ccdm    string
+	ccdm    string // 层次代码
 	xbm     string // 性别码 男1 女2
 	kkbk    string
 	kkbkdj  string
@@ -69,7 +69,7 @@ type APIConfig struct {
 	rlkz   string // 容量控制
 	rlzlkz string // 容量总量控制
 	cdrlkz string
-	xkly   string
+	xkly   string // 选课来源
 
 	tkzgcs_qt string
 	currentsj string

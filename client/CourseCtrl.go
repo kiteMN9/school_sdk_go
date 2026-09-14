@@ -9,6 +9,7 @@ import (
 	"math/rand"
 	"os"
 	"os/signal"
+	"school_sdk/check_code"
 	"school_sdk/client/config"
 	"school_sdk/utils"
 	"school_sdk/utils/color"
@@ -243,7 +244,7 @@ func (a *APIClient) Other(cfg *APIConfig) {
 		var err error
 		fmt.Printf(`
 ********************************
-1.课程模式切换 %d
+1.课程页签切换 %d
 2.邮件功能📧(SMTP) %t
 3.设置余量 %t
 4.查询成绩
@@ -374,6 +375,8 @@ dev.开发者模式
 				return
 			}
 			a.GetExam(year, termInt)
+		case "img":
+			check_code.SaveFile("./", a.Config.Account+".jpg", a.GetPhoto())
 		case "dev":
 			a.devMode(cfg)
 		default:
@@ -469,9 +472,9 @@ trace.
 
 func (a *APIClient) setMode(cfg *APIConfig) {
 	context.Background()
-	log.Println("特殊课程、通识选修课模式切换:", cfg.modeStore)
+	log.Println("特殊课程、通识选修课页签切换:", cfg.modeStore)
 	if len(cfg.modeStore) == 0 {
-		fmt.Println("没有模式切换选项哦")
+		fmt.Println("没有页签切换选项哦")
 		return
 	}
 	fmt.Println()
@@ -483,7 +486,7 @@ func (a *APIClient) setMode(cfg *APIConfig) {
 		fmt.Printf("%d: %s  %s\n", i, item.Kklxmc, item.Kklxdm)
 	}
 	fmt.Println("========end=========")
-	toChooseIdRow, err := utils.UserInputWithSigInt("输入模式前的序号:")
+	toChooseIdRow, err := utils.UserInputWithSigInt("输入页签前的序号:")
 	if err != nil {
 		return
 	}
@@ -498,9 +501,10 @@ func (a *APIClient) setMode(cfg *APIConfig) {
 		cfg.modeName = cfg.modeStore[index].Kklxmc
 		cfg.kklxdm = cfg.modeStore[index].Kklxdm
 		cfg.xkkz_id = cfg.modeStore[index].Xkkz_id
-		fmt.Println("等待模式修改:", cfg.modeName)
+		cfg.xkkz_xh = cfg.modeStore[index].Xkkz_xh
+		fmt.Println("等待页签修改:", cfg.modeName)
 		a.getCourseListPre(context.Background(), cfg, false)
-		fmt.Println("模式设置为:", cfg.modeName)
+		fmt.Println("页签设置为:", cfg.modeName)
 	} else {
 		fmt.Println("无效的选择")
 	}

@@ -105,7 +105,8 @@ func (a *APIClient) Login() bool {
 				continue
 			}
 			if errors.Is(err, IncorrectPassword) {
-				a.Config.SetConfigUserInfo(nil)
+				fmt.Println("密码重置:", strings.Replace(a.Http.BaseURL()+"/pwdmgr/retake/index.zf", "//", "/", -1))
+				a.Config.SetConfigUserInfo()
 				continue
 			}
 			if errors.Is(err, CsrfNotExist) {
@@ -151,7 +152,7 @@ func (a *APIClient) getCaptchaLogin(LoginExtend []byte, csrfToken, reqTime strin
 			return false
 		}
 		if errors.Is(err, IncorrectPassword) {
-			a.Config.SetConfigUserInfo(nil)
+			a.Config.SetConfigUserInfo()
 			continue
 		} else {
 			// set cookie empty?
@@ -231,7 +232,7 @@ func (a *APIClient) kaptchaLogin(csrfToken, reqTime string) bool {
 			continue
 		}
 		if errors.Is(err, IncorrectPassword) {
-			a.Config.SetConfigUserInfo(nil)
+			a.Config.SetConfigUserInfo()
 			continue
 		} else {
 			return stat

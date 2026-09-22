@@ -143,6 +143,10 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 	if err != nil {
 		log.Fatal(err)
 	}
+	if utils.Is10PrivateIP(u.Hostname()) {
+		fmt.Println("当前使用的是私网地址，请确保网络可达性")
+		fmt.Println(cfg.BaseURL)
+	}
 	client, htc := NewBasicClient(cfg.BaseURL, timeout, cfg)
 	if route != "" {
 		cookie := &http.Cookie{ // 过 nginx有这个
@@ -193,6 +197,7 @@ func NewAPIClient(timeout time.Duration, cfg *config.Data, isCas2, WX bool, rout
 	}
 
 	if isCas2 || WX {
+		cfg.SetCas2(true)
 		apiClient.cas2Client = cas2.NewCas(cfg.Account, cfg.CasPasswd, cfg.UserAgent, WX, cfg)
 		return apiClient
 	}

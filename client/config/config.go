@@ -31,6 +31,7 @@ type Data struct {
 	HedgingDelay string   `json:"hedgingDelay"`
 	TicketJWT    string   `json:"ticketJWT"`
 	Routes       []string `json:"routes"`
+	enableCas2   bool
 }
 
 func (c *Data) WriteConfig() {
@@ -62,7 +63,7 @@ func initConfig(filename string) *Data {
 		Routes:       []string{""},
 	}
 	initialData.WriteConfig()
-	initialData.SetConfigUserInfo(nil)
+	initialData.SetConfigUserInfo()
 	return &initialData
 }
 
@@ -94,16 +95,21 @@ func ReadConfig(filename string) *Data {
 	return &config
 }
 
-func (c *Data) SetConfigUserInfo(config *Data) {
+func (c *Data) SetConfigUserInfo() {
 	var Account, Passwd, newAccount, newPasswd string
 	var err error
-	if config == nil {
-		newAccount = c.Account
-		newPasswd = c.Passwd
+	if c.enableCas2 {
+		fmt.Println("当前登录方式：门户登录")
 	} else {
-		newAccount = config.Account
-		newPasswd = config.Passwd
+		fmt.Println("当前登录方式：教务系统登录，平静的配色方案、干净式美学...")
 	}
+	newAccount = c.Account
+	if c.enableCas2 {
+		newPasswd = c.CasPasswd
+	} else {
+		newPasswd = c.Passwd
+	}
+
 	fmt.Println("当前用户:", newAccount)
 	for {
 		Account, err = utils.UserInputWithSigInt("  账号:")
@@ -139,12 +145,19 @@ func (c *Data) SetConfigUserInfo(config *Data) {
 	}
 
 	c.Account = Account
-	c.Passwd = Passwd
-
+	if c.enableCas2 {
+		c.CasPasswd = Passwd
+	} else {
+		c.Passwd = Passwd
+	}
 	c.WriteConfig()
 }
 
 func (c *Data) UpdateConfigUserInfo(verify bool) {
 	c.ExistVerify = verify
-	c.SetConfigUserInfo(nil)
+	c.SetConfigUserInfo()
+}
+
+func (c *Data) SetCas2(b bool) {
+	c.enableCas2 = b
 }

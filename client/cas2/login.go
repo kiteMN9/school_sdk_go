@@ -114,27 +114,29 @@ func NewCas(account, password, UA string, wx bool, fCfg *config.Data) *Client {
 }
 
 func (c *Client) Login() bool {
-	if c.netCheckIdToken() {
-		return true
-	}
-	if c.enableWxLogin {
-		return c.WXLogin()
-	}
-	execution := c.getHtml()
-	//fmt.Println(execution)
-	encryptResult := c.getRsaPublicKey()
+	for range 3 {
+		if c.netCheckIdToken() {
+			return true
+		}
+		if c.enableWxLogin {
+			return c.WXLogin()
+		}
+		execution := c.getHtml()
+		fmt.Println("cas2 html ok")
+		encryptResult := c.getRsaPublicKey()
 
-	//check_code.SaveImgStream(c.getQrCode(), "./", "qrcode")
-	if c.postLogin(encryptResult, execution) {
-		//c.LoggedIn = true
-		return true
-	}
+		//check_code.SaveImgStream(c.getQrCode(), "./", "qrcode")
+		if c.postLogin(encryptResult, execution) {
+			//c.LoggedIn = true
+			return true
+		}
 
-	//c.LoggedIn = false
-	fmt.Println("清空cookie")
-	log.Println("清空cookie")
-	u, _ := url.Parse(c.http.BaseURL())
-	c.http.CookieJar().SetCookies(u, []*http.Cookie{})
+		//c.LoggedIn = false
+		fmt.Println("清空cookie")
+		log.Println("清空cookie")
+		u, _ := url.Parse(c.http.BaseURL())
+		c.http.CookieJar().SetCookies(u, []*http.Cookie{})
+	}
 	return false
 }
 
@@ -387,8 +389,11 @@ func (c *Client) postLogin(encryptResult, execution string) bool {
 			}
 		case 401:
 			fmt.Println("cas2 账户或密码错误 401")
-			time.Sleep(3 * time.Second)
-			os.Exit(0)
+			c.fCfg.SetConfigUserInfo()
+			//fmt.Println("这里没有做回调")
+			//time.Sleep(3 * time.Second)
+			//os.Exit(0)
+			return false
 		case 500:
 			log.Println("postLogin status:", resp.Status())
 			log.Println(resp.String())

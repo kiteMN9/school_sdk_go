@@ -25,6 +25,7 @@ func CheckTime(timeStr string, reqAt time.Time) {
 	if timeStr == "" || len(timeStr) < 6 {
 		return
 	}
+	systemTime := time.Now()
 	// 日期格式
 	layout := "2006-01-02 15:04:05"
 	// 解析日期字符串为time.Time对象
@@ -34,12 +35,12 @@ func CheckTime(timeStr string, reqAt time.Time) {
 	if err != nil {
 		return
 	}
-	//systemTime := time.Now()
 	diff := timeObj.Sub(reqAt)
+	deviation := reqAt.Sub(systemTime).Abs()
 	if diff.Abs() > 5*time.Second && diff.Abs() < 24*time.Hour {
-		fmt.Println("当前时间和教务系统时间差:", diff)
+		fmt.Println("当前时间和教务系统时间差:", diff, "误差:", deviation)
 	}
-	log.Println("当前时间和教务系统时间差:", diff)
+	log.Println("当前时间和教务系统时间差:", diff, "误差:", deviation)
 }
 
 // zzxkYzb.js

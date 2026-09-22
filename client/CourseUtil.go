@@ -35,8 +35,8 @@ func CheckTime(timeStr string) {
 		return
 	}
 	systemTime := time.Now()
-	diff := systemTime.Sub(timeObj).Abs()
-	if diff > 24*time.Hour && diff < 16*30*24*time.Hour {
+	diff := systemTime.Sub(timeObj)
+	if diff.Abs() > 5*time.Second && diff.Abs() < 1*time.Hour {
 		fmt.Println("当前时间和教务系统时间差:", diff)
 	}
 }

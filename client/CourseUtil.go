@@ -20,7 +20,7 @@ import (
 	"golang.org/x/net/html"
 )
 
-func CheckTime(timeStr string) {
+func CheckTime(timeStr string, reqAt time.Time) {
 	//时间检测
 	if timeStr == "" || len(timeStr) < 6 {
 		return
@@ -34,11 +34,12 @@ func CheckTime(timeStr string) {
 	if err != nil {
 		return
 	}
-	systemTime := time.Now()
-	diff := systemTime.Sub(timeObj)
-	if diff.Abs() > 5*time.Second && diff.Abs() < 1*time.Hour {
+	//systemTime := time.Now()
+	diff := timeObj.Sub(reqAt)
+	if diff.Abs() > 5*time.Second && diff.Abs() < 24*time.Hour {
 		fmt.Println("当前时间和教务系统时间差:", diff)
 	}
+	log.Println("当前时间和教务系统时间差:", diff)
 }
 
 // zzxkYzb.js

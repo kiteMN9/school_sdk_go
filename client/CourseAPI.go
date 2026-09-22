@@ -7,7 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
+	"regexp"
+	"school_sdk/check_code"
 	baseCfg "school_sdk/config"
 	"school_sdk/utils"
 	"strings"
@@ -27,6 +28,7 @@ func (a *APIClient) getPubParams(ctx context.Context, cfg *APIConfig, save bool)
 	i := 0
 	for {
 		i++
+		reqAt := time.Now()
 		resp, err := a.hedgeC.R().
 			SetContext(ctx).
 			SetQueryParam("gnmkdm", "N253512").
@@ -83,8 +85,16 @@ func (a *APIClient) getPubParams(ctx context.Context, cfg *APIConfig, save bool)
 				jdStr := strings.TrimSpace(htmlquery.InnerText(statNode[0]))
 				// Sorry, it is not in the elective stage at present. If necessary, please contact the administrator.
 				// 对不起，当前不属于选课阶段，如有需要，请与管理员联系！
-				fmt.Printf("\r%d %s", i, jdStr)
-				log.Printf("%d %s", i, jdStr)
+				re := regexp.MustCompile(`ver=(\d+)`)
+				match := re.FindStringSubmatch(resp.String())
+				ver := ""
+				if len(match) > 1 {
+					ver = match[1]
+				} else {
+					log.Println("未找到 ver=数字")
+				}
+				fmt.Printf("\r%d %s ver=%s", i, jdStr, ver)
+				log.Printf("%d %s ver=%s", i, jdStr, ver)
 				needEnter = true
 				time.Sleep(650 * time.Millisecond)
 			}
@@ -99,27 +109,14 @@ func (a *APIClient) getPubParams(ctx context.Context, cfg *APIConfig, save bool)
 			log.Println("getPubParams:", resp.Status(), resp.String())
 			continue
 		}
-		CheckTime(cfg.currentsj)
+		CheckTime(cfg.currentsj, reqAt)
 		htmlContent := utils.RemoveEmptyLines(resp.String())
 		if !save {
 			log.Println(htmlContent)
 		}
 		a.Name = getXpathValue(docNode, "xm")
 		if save {
-			fileName := "zzxkyzb_cxZzxkYzbIndex.html"
-			dstFile, err := os.Create(fileName)
-			if err != nil {
-				fmt.Println(err.Error())
-				return
-			}
-			_, err = dstFile.WriteString(htmlContent + "\n")
-			if err != nil {
-				return
-			}
-			err = dstFile.Close()
-			if err != nil {
-				return
-			}
+			check_code.SaveFile("./", "zzxkyzb_cxZzxkYzbIndex.html", resp.Bytes())
 		}
 		return
 	}
@@ -173,7 +170,7 @@ func parseYzbIndexHtml(cfg *APIConfig, docNode *html.Node) bool {
 	if cfg.xkkz_xh != "" {
 		fmt.Println("正方 V9")
 	}
-	fmt.Println("✅ Step 1 index finished")
+	fmt.Println("Step 1 index finished")
 	fmt.Println("\n\r将要选 \033[1;36m", cfg.Kklxmc, "\033[0m !!")
 	log.Println("将要选", cfg.Kklxmc, "!!")
 	parseKklxdmXkkz__(cfg, docNode)
@@ -182,7 +179,7 @@ func parseYzbIndexHtml(cfg *APIConfig, docNode *html.Node) bool {
 }
 
 func (a *APIClient) getCourseListPre(ctx context.Context, cfg *APIConfig, save bool) {
-	// 补 齐搜索课程需要的发包参数
+	// 补齐搜索课程需要的发包参数 页签
 	log.Println("===============getCourseList_pre()=================")
 	formData := map[string]string{
 		"xszxzt": cfg.xszxzt, // 1
@@ -244,20 +241,7 @@ func (a *APIClient) getCourseListPre(ctx context.Context, cfg *APIConfig, save b
 				log.Println(htmlContent)
 			}
 			if save {
-				fileName := "zzxkyzb_cxZzxkYzbDisplay.html"
-				dstFile, err := os.Create(fileName)
-				if err != nil {
-					fmt.Println(err.Error())
-					return
-				}
-				_, err = dstFile.WriteString(htmlContent + "\n")
-				if err != nil {
-					return
-				}
-				err = dstFile.Close()
-				if err != nil {
-					return
-				}
+				check_code.SaveFile("./", "zzxkyzb_cxZzxkYzbDisplay.html", resp.Bytes())
 			}
 			return
 		}
@@ -318,7 +302,7 @@ func parseListPreHtml(cfg *APIConfig, docNode *html.Node) {
 		fmt.Println("❌ Step 2 params failed")
 		return
 	}
-	fmt.Println("✅ Step 2 params finished")
+	fmt.Println("Step 2 params finished")
 }
 
 func (a *APIClient) getCourseList(ctx context.Context, cfg *APIConfig) []CourseListDic {

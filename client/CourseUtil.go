@@ -66,21 +66,26 @@ func parseKklxdmXkkz__(cfg *APIConfig, docNode *html.Node) {
 		tmp := strings.TrimPrefix(onclick, "queryCourse(this,'")
 		parts := strings.Split(tmp, "','")
 		//log.Println("parts:", parts)
-		if len(parts) < 2 {
+		if len(parts) < 3 {
 			continue
 		}
-
 		var store ModeStore
 		store.Kklxmc = nameNode.Data
 		store.Kklxdm = parts[0]
 		store.Xkkz_id = parts[1]
-		if len(parts) >= 5 {
-			store.Njdm_id = parts[3]
-			store.Zyh_id = parts[4]
+		store.Njdm_id = parts[2]
+		if len(parts) == 4 {
+			store.Zyh_id = strings.TrimSuffix(parts[3], "')")
+		}
+		if len(parts) == 5 {
+			store.Zyh_id = parts[3]
 			store.Xkkz_xh = strings.TrimSuffix(parts[4], "')")
 		}
+		if len(parts) >= 6 {
+			log.Println("⚠️ xkkz unsport")
+			fmt.Println("⚠️ xkkz unsport")
+		}
 		cfg.modeStore = append(cfg.modeStore, store)
-		//fmt.Println("store:", store)
 	}
 	log.Println("modeStore:", cfg.modeStore)
 	if len(cfg.modeStore) != 0 {

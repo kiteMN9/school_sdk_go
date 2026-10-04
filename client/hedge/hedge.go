@@ -136,11 +136,14 @@ spawn:
 	for i := range maxReq {
 		if i > 0 {
 			if delay > 0 {
+				timer := time.NewTimer(delay)
 				select {
-				case <-time.After(delay):
+				case <-timer.C:
 				case <-decidedCh:
+					timer.Stop()
 					break spawn
 				case <-reqCtx.Done():
+					timer.Stop()
 					break spawn
 				}
 			}

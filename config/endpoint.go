@@ -50,13 +50,12 @@ const (
 	ChooseCourseCourseList   = "/xsxk/zzxkyzb_cxZzxkYzbPartDisplay.html"    // 搜索课程接口
 	ChooseCourseCourseDetail = "/xsxk/zzxkyzb_cxJxbWithKchZzxkYzb.html"     // 查询课程号对应的详细信息
 	ChooseSimpleDoJxb        = "/xsxk/zzxkyzb_cxZkcZzxkYzb.html"            // 查询实践课 jxb_id[] -> do_jxb_id
-	ChooseCourse             = "/xsxk/zzxkyzb_xkBcZyZzxkYzb.html"           // 发送选课
+	ChooseCourse             = "/xsxk/zzxkyzbjk_xkBcZyZzxkYzb.html"         // 发送选课
 	CourseSelectedList       = "/xsxk/zzxkyzb_cxZzxkYzbChoosedDisplay.html" // 查询已选课程接口
 	QuitCourse               = "/xsxk/zzxkyzb_tuikBcZzxkYzb.html"           // 退课
 	CourseRegistered         = "/xsxk/zzxkyzb_xkJcInXksjZzxkYzb.html"       // 课程选课检查
 
 	//ChooseCourseCourseDetail2 = "/xsxk/zzxkyzbjk_cxJxbWithKchZzxkYzb.html" // 查询课程号对应的详细信息
-	//ChooseCourse2             = "/xsxk/zzxkyzbjk_xkBcZyZzxkYzb.html"       // 发送选课
 
 	// xsxk/zzxkyzb_xkZzxkyzbQuickly.html" // chooseCoursesQuickly
 

@@ -5,10 +5,11 @@ go 1.27.0
 require (
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/PuerkitoBio/goquery v1.13.0
-	github.com/andybalholm/brotli v1.2.4
+	github.com/andybalholm/brotli v1.2.6
 	github.com/antchfx/htmlquery v1.3.6
 	github.com/disintegration/imaging v1.6.2
-	github.com/klauspost/compress v1.20.0
+	github.com/klauspost/compress v1.20.1
+	github.com/stretchr/testify v1.12.1
 	github.com/xuri/excelize/v2 v2.11.0
 	golang.org/x/net v0.59.0
 	gopkg.in/gomail.v2 v2.0.0-20160411212932-81ebce5c23df
@@ -23,11 +24,12 @@ require (
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mgutz/ansi v0.0.0-20200706080929-d51e80ef957d // indirect
-	github.com/richardlehane/mscfb v1.0.8 // indirect
+	github.com/richardlehane/mscfb v1.0.9 // indirect
 	github.com/richardlehane/msoleps v1.0.6 // indirect
 	github.com/tiendc/go-deepcopy v1.7.2 // indirect
 	github.com/xuri/efp v0.0.2 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/crypto v0.57.0 // indirect
 	golang.org/x/image v0.46.0 // indirect
 	golang.org/x/sys v0.48.0 // indirect

@@ -2,6 +2,7 @@ package client
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/base64"
 	"encoding/json/v2"
@@ -36,6 +37,7 @@ var CsrfNotExist = fmt.Errorf("CSRF not exist")
 var LoginFailSetCookie = fmt.Errorf("login fail set cookie")
 var loginMU sync.Mutex
 var lastSuccessTime = time.Unix(0, 0)
+var hasSliderCaptcha bool = false
 
 func (a *APIClient) ReLogin() bool {
 	loginMU.Lock()
@@ -83,8 +85,7 @@ func (a *APIClient) Login() bool {
 			}
 			continue
 		}
-		if a.Config.ExistVerify {
-			// if verify_type
+		if hasSliderCaptcha {
 			if a.getCaptchaLogin(LoginExtend, csrfToken, reqTime) {
 				return true
 			}
@@ -101,7 +102,7 @@ func (a *APIClient) Login() bool {
 			//csrfToken = a.getRawCsrfToken()
 			stat_, err := a.postLogin(csrfToken, reqTime, encryptedResult, "")
 			if errors.Is(err, ExistVerify) {
-				a.Config.UpdateConfigUserInfo(true)
+				hasSliderCaptcha = true
 				continue
 			}
 			if errors.Is(err, IncorrectPassword) {
@@ -144,11 +145,11 @@ func (a *APIClient) getCaptchaLogin(LoginExtend []byte, csrfToken, reqTime strin
 			rtk = a.getRTK()
 		}
 		if errors.Is(err, ExistVerify) {
-			if a.Config.ExistVerify {
-				log.Println("重试验证码")
+			if hasSliderCaptcha {
+				log.Println("重试滑块验证码")
 				continue
 			}
-			a.Config.ExistVerify = true
+			hasSliderCaptcha = true
 			return false
 		}
 		if errors.Is(err, IncorrectPassword) {
@@ -273,6 +274,110 @@ func (a *APIClient) getKaptchaImage() string {
 }
 
 func (a *APIClient) getRawCsrfToken() (string, bool, bool) {
+	// 获取CSRF令牌
+	var failCount int
+	var timeout int
+	var csrfToken string
+	var hasYzm bool // 字符验证码
+	var existsCSRF bool
+	for {
+		//if !a.loginCtxOK(ctx) {
+		//	return "", false, false
+		//}
+		resp, err := a.hedgeC.R().
+			//SetContext(ctx).
+			//SetRetryCount(1).
+			//SetQueryParam("time", strconv.FormatInt(time.Now().UnixMilli(), 10)).
+			//SetQueryParams(map[string]string{ // ?language=zh_CN&_t=MiniSecond
+			//	"language": "zh_CN",
+			//	"_t":       strconv.FormatInt(time.Now().UnixMilli(), 10),
+			//}).
+			Get(baseCfg.LoginIndex)
+
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				return "", false, false
+			}
+			if errors.Is(err, context.DeadlineExceeded) {
+				timeout++
+				fmt.Println("CSRF 请求超时", timeout, resp.Duration())
+				continue
+			}
+			if errors.Is(err, io.EOF) {
+				fmt.Println(err)
+				time.Sleep(3 * time.Second)
+				continue
+			} else {
+				log.Println("CSRF HTTP 请求失败:", failCount, err)
+				failCount++
+			}
+			if failCount > 1 {
+				fmt.Printf("\r%d %s", failCount, err.Error())
+			}
+			time.Sleep(600 * time.Millisecond)
+			continue
+		}
+		if resp.IsStatusFailure() {
+			if resp.StatusCode() == 404 {
+				fmt.Println("url:", a.Http.BaseURL())
+				fmt.Println("404, url 填的有问题吧，是不是少了 /jwglxt 或者多了")
+				log.Println("404, url 填的有问题吧")
+				time.Sleep(4 * time.Second)
+				continue
+			}
+			failCount++
+			log.Println("CSRF http:", resp.Status())
+		}
+		if failCount > 2 {
+			fmt.Println()
+		}
+
+		if resp.IsStatusSuccess() {
+			doc, err := goquery.NewDocumentFromReader(bytes.NewReader(resp.Bytes()))
+			if err != nil {
+				log.Println("CSRF 解析 HTML 失败:", err)
+				time.Sleep(150 * time.Millisecond)
+				continue
+			}
+
+			hasSliderCaptcha = hasSliderCap(doc)
+
+			if doc.Find("#yzmDiv").Text() != "" {
+				hasYzm = true
+			}
+
+			// 使用 CSS 选择器提取元素属性 "input#csrftoken"
+			csrfToken, existsCSRF = doc.Find("input#csrftoken").Attr("value")
+			if existsCSRF {
+				return csrfToken, hasYzm, false
+			}
+			if utils.UserIsLogin(a.Config.Account, resp.String()) {
+				return "nil", hasYzm, false
+			}
+			fmt.Println("未找到 #csrftoken 元素或其 value 属性")
+			log.Println("未找到 #csrftoken 元素或其 value 属性")
+			log.Println(resp.String())
+		}
+
+		if resp.StatusCode() == 302 {
+			if strings.Contains(resp.Header().Get("Location"), baseCfg.MENU) {
+				return "", hasYzm, true
+			}
+			fmt.Println(resp.Header().Get("Location"))
+			return "", hasYzm, false
+		}
+		time.Sleep(1 * time.Second)
+		continue
+	}
+}
+
+func hasSliderCap(doc *goquery.Document) bool {
+	return doc.Find(".captcha_wrapper").Length() > 0 ||
+		doc.Find("script[src*='zfdun_captcha.js']").Length() > 0 ||
+		doc.Find("link[href*='zfdun_captcha.css']").Length() > 0
+}
+
+func (a *APIClient) getRawCsrfTokenStream() (string, bool, bool) {
 	var failCount int
 	var timeout int
 	type result struct {

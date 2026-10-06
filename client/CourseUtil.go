@@ -230,7 +230,6 @@ func (s *SafeCustomCourseSlice) courseList2custom(list []CourseListDic) {
 		tmp.DateDigitSeparator = list[i].DateDigitSeparator
 		// tmp. = list[i].
 		s.items = append(s.items, tmp)
-		// s.Append(tmp) // 这里又锁了不知道会不会有问题
 	}
 }
 

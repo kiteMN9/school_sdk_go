@@ -15,7 +15,7 @@ import (
 	"school_sdk/utils"
 )
 
-var version = "school_sdk_go 1.2.19"
+var version = "school_sdk_go 1.2.20"
 
 func main() {
 	var cfgFileName, wantFile, modeCode, route string

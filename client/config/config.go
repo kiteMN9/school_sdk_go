@@ -22,8 +22,7 @@ type Data struct {
 	CasPasswd string `json:"casPasswd"`
 	Timeout   string `json:"timeout"`
 	Want      string `json:"want"`
-	//Verify    string `json:"verify"`
-	ExistVerify  bool     `json:"verify"`
+
 	CasLogin     bool     `json:"casLogin"`
 	UserAgent    string   `json:"ua"`
 	PerInfo      bool     `json:"perInfo"`
@@ -55,7 +54,6 @@ func initConfig(filename string) *Data {
 		Timeout:      "43s",
 		Want:         "want.xlsx",
 		UserAgent:    cfg.FireFoxUA,
-		ExistVerify:  true,
 		CasLogin:     false,
 		PerInfo:      true,
 		Hedging:      false,
@@ -82,7 +80,6 @@ func ReadConfig(filename string) *Data {
 		filename:     filename,
 		Timeout:      "43s",
 		UserAgent:    cfg.ApppleUA,
-		ExistVerify:  true,
 		PerInfo:      true,
 		HedgingDelay: "21s",
 	}
@@ -151,11 +148,6 @@ func (c *Data) SetConfigUserInfo() {
 		c.Passwd = Passwd
 	}
 	c.WriteConfig()
-}
-
-func (c *Data) UpdateConfigUserInfo(verify bool) {
-	c.ExistVerify = verify
-	c.SetConfigUserInfo()
 }
 
 func (c *Data) SetCas2(b bool) {

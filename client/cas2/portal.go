@@ -228,7 +228,7 @@ func (c *Client) netCheckIdToken() bool {
 		//SetResult(&result).
 		SetRetryCount(1).
 		AddRetryConditions(resty.RetryConditionStatus5XX).
-		Get("https://portal.ycit.edu.cn/portal-api/v2/service/networkCheck")
+		Get(checkToken)
 	if err != nil {
 		fmt.Println(err)
 		log.Println(err)

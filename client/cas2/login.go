@@ -198,7 +198,7 @@ func (c *Client) getHtml() string {
 			SetQueryParam("service", "https://portal.ycit.edu.cn/?path=https://portal.ycit.edu.cn/main.html#/").
 			SetRetryCount(1).
 			SetResponseDoNotParse(true).
-			Get("/cas/login")
+			Get(login)
 
 		if err != nil {
 			// 错误处理（注意 resp 可能为 nil，此时不能调用 resp.Body.Close）
@@ -245,7 +245,7 @@ func (c *Client) getRsaPublicKey() string {
 	for {
 		resp, err := c.http.R().
 			SetRetryCount(1).
-			Get("/cas/jwt/publicKey")
+			Get(pubKey)
 		if err != nil {
 			log.Println("getRsaPublicKey", err)
 			time.Sleep(1 * time.Second)
@@ -285,7 +285,7 @@ func (c *Client) getCaptchaImage() []byte {
 	resp, err := c.http.R().
 		SetQueryParam("r", fmt.Sprint(time.Now().UnixMicro()/100)).
 		SetRetryCount(2).
-		Get("/cas/captcha.jpg")
+		Get(captcha)
 	if err != nil {
 		log.Println("getCaptchaImage:", err)
 		return []byte{}
@@ -299,7 +299,7 @@ func (c *Client) getQrCode() []byte {
 	resp, err := c.http.R().
 		SetQueryParam("r", fmt.Sprint(time.Now().UnixMicro()/100)).
 		SetRetryCount(2).
-		Get("/cas/qr/qrcode")
+		Get(qrCode)
 	if err != nil {
 		log.Println("getCaptchaImage:", err)
 		return []byte{}
@@ -326,7 +326,7 @@ func (c *Client) postLogin(encryptResult, execution string) bool {
 				"geolocation": "",
 				"fpVisitorId": c.fpVisitorId,
 				"submit1":     "Login1",
-			}).Post("/cas/login")
+			}).Post(login)
 		if err != nil {
 			fmt.Println("postLogin error:", err)
 			log.Println("postLogin err:", err)

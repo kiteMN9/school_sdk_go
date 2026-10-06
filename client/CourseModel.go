@@ -150,29 +150,8 @@ type ChosenDic struct {
 	Zixf        string `json:"zixf"`
 	Zy          string `json:"zy"`
 
-	QueryModel struct {
-		CurrentPage   int  `json:"currentPage"`
-		CurrentResult int  `json:"currentResult"`
-		EntityOrField bool `json:"entityOrField"`
-		Limit         int  `json:"limit"`
-		Offset        int  `json:"offset"`
-		PageNo        int  `json:"pageNo"`
-		PageSize      int  `json:"pageSize"`
-		ShowCount     int  `json:"showCount"`
-		//Sorts         []interface{} `json:"sorts"`
-		TotalCount  int `json:"totalCount"`
-		TotalPage   int `json:"totalPage"`
-		TotalResult int `json:"totalResult"`
-	} `json:"queryModel"`
-
-	UserModel struct {
-		Monitor    bool   `json:"monitor"`
-		RoleCount  int    `json:"roleCount"`
-		RoleKeys   string `json:"roleKeys"`
-		RoleValues string `json:"roleValues"`
-		Status     int    `json:"status"`
-		Usable     bool   `json:"usable"`
-	} `json:"userModel"`
+	QueryModel QueryModel `json:"queryModel"`
+	UserModel  UserModel  `json:"userModel"`
 }
 
 type ChooseCourseResult struct {
@@ -180,29 +159,29 @@ type ChooseCourseResult struct {
 	Msg  string `json:"msg"`
 }
 
-type CourseListDicQueryModel struct {
-	CurrentPage   int  `json:"currentPage"`
-	CurrentResult int  `json:"currentResult"`
-	EntityOrField bool `json:"entityOrField"`
-	Limit         int  `json:"limit"`
-	Offset        int  `json:"offset"`
-	PageNo        int  `json:"pageNo"`
-	PageSize      int  `json:"pageSize"`
-	ShowCount     int  `json:"showCount"`
-	// sorts // 'sorts': []
-	TotalCount  int `json:"totalCount"`
-	TotalPage   int `json:"totalPage"`
-	TotalResult int `json:"totalResult"`
+type QueryModel struct {
+	CurrentPage   int   `json:"currentPage"`
+	CurrentResult int   `json:"currentResult"`
+	EntityOrField bool  `json:"entityOrField"`
+	Limit         int   `json:"limit"`
+	Offset        int   `json:"offset"`
+	PageNo        int   `json:"pageNo"`
+	PageSize      int   `json:"pageSize"`
+	ShowCount     int   `json:"showCount"`
+	Sorts         []any `json:"sorts"`
+	TotalCount    int   `json:"totalCount"`
+	TotalPage     int   `json:"totalPage"`
+	TotalResult   int   `json:"totalResult"`
 }
 
-// type userModel struct {
-// 	Monitor    bool   `json:"monitor"`
-// 	RoleCount  int    `json:"roleCount"`
-// 	RoleKeys   string `json:"roleKeys"`
-// 	RoleValues string `json:"roleValues"`
-// 	Status     int    `json:"status"`
-// 	Usable     bool   `json:"usable"`
-// }
+type UserModel struct {
+	Monitor    bool   `json:"monitor"`
+	RoleCount  int    `json:"roleCount"`
+	RoleKeys   string `json:"roleKeys"`
+	RoleValues string `json:"roleValues"`
+	Status     int    `json:"status"`
+	Usable     bool   `json:"usable"`
+}
 
 type CourseListDic struct {
 	Blyxrs             string `json:"blyxrs"` // 本轮已选人数
@@ -211,56 +190,40 @@ type CourseListDic struct {
 	Date               string `json:"date"`               // '二○二五年二月二十六日'
 	DateDigit          string `json:"dateDigit"`          // '2025年2月26日'
 	DateDigitSeparator string `json:"dateDigitSeparator"` // '2025-2-26'
-	Day                string `json:"day"`
-	Fxbj               string `json:"fxbj"`
-	Jgpxzd             string `json:"jgpxzd"`
-	JxbId              string `json:"jxb_id"` // 教学班id，用于连接List和Detail
-	Jxbmc              string `json:"jxbmc"`  // 教学班名称  "艺术哲学：美是如何诞生的(艺术类)-0001"
-	Jxbxf              string `json:"jxbxf"`
-	Jxbzls             string `json:"jxbzls"` // 'jxbzls': '1'
-	Kch                string `json:"kch"`    // 课程号  '9000000398'
-	KchId              string `json:"kch_id"` // 课程号 id
-	Kclxmc             string `json:"kclxmc"`
-	Kcmc               string `json:"kcmc"` // 课程名称  "艺术哲学：美是如何诞生的(艺术类)"
-	Kcrow              string `json:"kcrow"`
-	Kklxdm             string `json:"kklxdm"` // 关键参数，区分不同类型选课  '10'
-	Kzmc               string `json:"kzmc"`   // 课程性质  "艺术类"
-	Listnav            string `json:"listnav"`
-	LocaleKey          string `json:"localeKey"`
-	Month              string `json:"month"`
-	PageTotal          int    `json:"pageTotal"`
-	Pageable           bool   `json:"pageable"`
-	QueryModel         struct {
-		CurrentPage   int   `json:"currentPage"`
-		CurrentResult int   `json:"currentResult"`
-		EntityOrField bool  `json:"entityOrField"`
-		Limit         int   `json:"limit"`
-		Offset        int   `json:"offset"`
-		PageNo        int   `json:"pageNo"`
-		PageSize      int   `json:"pageSize"`
-		ShowCount     int   `json:"showCount"`
-		Sorts         []any `json:"sorts"`
-		TotalCount    int   `json:"totalCount"`
-		TotalPage     int   `json:"totalPage"`
-		TotalResult   int   `json:"totalResult"`
-	} `json:"queryModel"`
+
+	Day       string `json:"day"`
+	Fxbj      string `json:"fxbj"`
+	Jgpxzd    string `json:"jgpxzd"`
+	JxbId     string `json:"jxb_id"` // 教学班id，用于连接List和Detail
+	Jxbmc     string `json:"jxbmc"`  // 教学班名称  "艺术哲学：美是如何诞生的(艺术类)-0001"
+	Jxbxf     string `json:"jxbxf"`
+	Jxbzls    string `json:"jxbzls"` // 'jxbzls': '1'
+	Kch       string `json:"kch"`    // 课程号  '9000000398'
+	KchId     string `json:"kch_id"` // 课程号 id
+	Kclxmc    string `json:"kclxmc"`
+	Kcmc      string `json:"kcmc"` // 课程名称  "艺术哲学：美是如何诞生的(艺术类)"
+	Kcrow     string `json:"kcrow"`
+	Kklxdm    string `json:"kklxdm"` // 关键参数，区分不同类型选课  '10'
+	Kzmc      string `json:"kzmc"`   // 课程性质  "艺术类"
+	Listnav   string `json:"listnav"`
+	LocaleKey string `json:"localeKey"`
+	Month     string `json:"month"`
+	PageTotal int    `json:"pageTotal"`
+	Pageable  bool   `json:"pageable"`
+
 	Rangeable   bool   `json:"rangeable"`
 	Rwzxs       string `json:"rwzxs"`
 	Sftj        string `json:"sftj"`
 	TotalResult string `json:"totalResult"`
-	UserModel   struct {
-		Monitor    bool   `json:"monitor"`
-		RoleCount  int    `json:"roleCount"`
-		RoleKeys   string `json:"roleKeys"`
-		RoleValues string `json:"roleValues"`
-		Status     int    `json:"status"`
-		Usable     bool   `json:"usable"`
-	} `json:"userModel"`
+
 	Xf      string `json:"xf"`    // 学分  "1.5"
 	Xxkbj   string `json:"xxkbj"` // 选修课标记?
 	Year    string `json:"year"`  // '2025'
 	Yxzrs   string `json:"yxzrs"` // 已选人数  "70"
 	Zcongbj string `json:"zcongbj"`
+
+	QueryModel QueryModel `json:"queryModel"`
+	UserModel  UserModel  `json:"userModel"`
 }
 
 type GetCourseListResult struct {
@@ -306,6 +269,7 @@ type CourseDetail struct {
 	Jxms   string `json:"jxms"`   // jxms: 理论
 	Kclbmc string `json:"kclbmc"` // kclbmc: 公共必修课
 	// Yqmc string `json:"yqmc"` //'yqmc': '--'
+	Yxzrs string `json:"yxzrs"` // // 已选人数 9.0正方
 
 	// kcxzmc string `json:"kcxzmc"` //
 }

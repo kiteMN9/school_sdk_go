@@ -198,7 +198,6 @@ func (s *SafeCustomCourseSlice) courseList2custom(list []CourseListDic) {
 				tmp.DateDigitSeparator = list[i].DateDigitSeparator
 				// tmp. = list[i].
 				// cust[j]. = list[i].DateDigitSeparator
-				// nCustP.Update(j, tmp)
 				if j >= len(s.items) {
 					log.Println("list index out of range")
 					fmt.Println("list index out of range")
@@ -230,7 +229,6 @@ func (s *SafeCustomCourseSlice) courseList2custom(list []CourseListDic) {
 		tmp.DateDigit = list[i].DateDigit
 		tmp.DateDigitSeparator = list[i].DateDigitSeparator
 		// tmp. = list[i].
-		// cust = append(cust, tmp)
 		s.items = append(s.items, tmp)
 		// s.Append(tmp) // 这里又锁了不知道会不会有问题
 	}
@@ -245,7 +243,6 @@ func (s *SafeCustomCourseSlice) courseDetail2custom(list []CourseDetail) {
 			if list[i].JxbId == s.items[j].Jxb_id {
 				// refresh
 				// var tmp CustomCourseDic
-				// tmp := s.Get(j)
 				tmp := s.items[j]
 				tmp.Do_jxb_id = list[i].DoJxbId
 				tmp.Jxbrl = list[i].Jxbrl
@@ -260,7 +257,9 @@ func (s *SafeCustomCourseSlice) courseDetail2custom(list []CourseDetail) {
 				tmp.Kclbmc = list[i].Kclbmc
 				// tmp. = list[i].
 				// cust[j].DateDigit = list[i].DateDigit
-				// s.Update(j, tmp)
+				if list[i].Yxzrs != "" {
+					tmp.Yxzrs = list[i].Yxzrs // 正方9.0特性
+				}
 				if j >= len(s.items) {
 					log.Println("list index out of range")
 					fmt.Println("list index out of range")

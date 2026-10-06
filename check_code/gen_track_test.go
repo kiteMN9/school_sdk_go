@@ -3,6 +3,8 @@ package check_code
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func Test_GetTrack(t *testing.T) {
@@ -11,9 +13,7 @@ func Test_GetTrack(t *testing.T) {
 
 	// 直接序列化
 	jsonData, err := json.Marshal(trackData)
-	if err != nil {
-		panic(err)
-	}
+	require.NoError(t, err)
 	println(string(jsonData))
 
 }
